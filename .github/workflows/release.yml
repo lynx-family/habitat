@@ -1,0 +1,39 @@
+name: release
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: check if version changed
+        run: |
+          export VERSION=$(python -c "from core.__version__ import __version__; print(__version__)")
+          export VERSION_LINE_OID=$(git blame core/__version__.py --root -l | grep "VERSION = " | cut -c 1-40)
+          export HEAD_OID=$(git log -1 --format='%H')
+          if [ "$VERSION_LINE_OID" == "$HEAD_OID" ]; then echo "UPGRADE=1" >> $GITHUB_OUTPUT; echo "VERSION=$VERSION" >> $GITHUB_OUTPUT; fi
+        id: check_version
+      - name: package
+        if: ${{ steps.check_version.outputs.UPGRADE == '1' }}
+        run: |
+          make install_dev
+          make package
+      - name: release
+        uses: ncipollo/release-action@v1
+        if: ${{ steps.check_version.outputs.UPGRADE == '1' }}
+        with:
+          name: ${{ steps.check_version.outputs.VERSION }}
+          tag: ${{ steps.check_version.outputs.VERSION }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          replacesArtifacts: false
+          artifacts: hab.pex,bin/hab
