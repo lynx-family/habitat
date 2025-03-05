@@ -12,7 +12,7 @@ We provide both a binary (hab.pex) and a wrapper script. You can find them in th
 
 The simplest way is to download the wrapper using following instruction:
 ```shell
-curl -L -O https://github.com/lynx-infra/habitat/releases/latest/download/hab
+curl -L -O https://github.com/lynx-family/habitat/releases/latest/download/hab | chmod +x hab
 ```
 
 ## Usage
