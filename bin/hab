@@ -36,7 +36,7 @@ die () {
 
 HABITAT_VERSION=${HABITAT_VERSION:-$__version__}
 
-HABITAT_RELEASES_BASE_URL=https://github.com/tiktok/habitat/releases
+HABITAT_RELEASES_BASE_URL=https://github.com/lynx-family/habitat/releases
 
 if [[ $HABITAT_VERSION = 'latest' ]]; then
   HABITAT_DOWNLOAD_URL=$HABITAT_RELEASES_BASE_URL/latest/download/hab.pex
