@@ -24,7 +24,8 @@ jobs:
           export VERSION=$(python -c "from core.__version__ import __version__; print(__version__)")
           export VERSION_LINE_OID=$(git blame core/__version__.py --root -l | grep "VERSION = " | cut -c 1-40)
           export HEAD_OID=$(git log -1 --format='%H')
-          if [ "$VERSION_LINE_OID" == "$HEAD_OID" ]; then echo "UPGRADE=1" >> $GITHUB_OUTPUT; echo "VERSION=$VERSION" >> $GITHUB_OUTPUT; fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT;
+          if [ "$VERSION_LINE_OID" == "$HEAD_OID" ]; then echo "UPGRADE=1" >> $GITHUB_OUTPUT; fi
         id: check_version
       - name: package
         if: ${{ steps.check_version.outputs.UPGRADE == '1' || github.event_name == 'workflow_dispatch' }}
