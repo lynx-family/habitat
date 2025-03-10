@@ -8,6 +8,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   release:
     if: github.event.pull_request.merged == true
@@ -24,7 +27,7 @@ jobs:
           if [ "$VERSION_LINE_OID" == "$HEAD_OID" ]; then echo "UPGRADE=1" >> $GITHUB_OUTPUT; echo "VERSION=$VERSION" >> $GITHUB_OUTPUT; fi
         id: check_version
       - name: package
-        if: ${{ steps.check_version.outputs.UPGRADE == '1' }}
+        if: ${{ steps.check_version.outputs.UPGRADE == '1' || github.event_name == 'workflow_dispatch' }}
         run: |
           make install_dev
           make package
