@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   release:
-    if: github.event.pull_request.merged == true
+    if: ${{ github.event.pull_request.merged || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,7 +33,7 @@ jobs:
           make package
       - name: release
         uses: ncipollo/release-action@v1
-        if: ${{ steps.check_version.outputs.UPGRADE == '1' }}
+        if: ${{ steps.check_version.outputs.UPGRADE == '1'  || github.event_name == 'workflow_dispatch' }}
         with:
           name: ${{ steps.check_version.outputs.VERSION }}
           tag: ${{ steps.check_version.outputs.VERSION }}
