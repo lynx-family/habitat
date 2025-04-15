@@ -12,9 +12,12 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  check-version:
     if: ${{ github.event.pull_request.merged || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
+    outputs:
+      upgrade: ${{ steps.check.outputs.UPGRADE }}
+      version: ${{ steps.check.outputs.VERSION }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,18 +29,65 @@ jobs:
           export HEAD_OID=$(git log -1 --format='%H')
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT;
           if [ "$VERSION_LINE_OID" == "$HEAD_OID" ]; then echo "UPGRADE=1" >> $GITHUB_OUTPUT; fi
-        id: check_version
+        id: check
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [check-version, windows-package, package]
+    if: ${{ needs.check-version.outputs.upgrade == '1' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: download artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: habitat-*
+          merge-multiple: true
+      - name: release
+        uses: ncipollo/release-action@v1
+        if: ${{ needs.check-version.outputs.upgrade == '1' || github.event_name == 'workflow_dispatch' }}
+        with:
+          name: ${{ needs.check-version.outputs.version }}
+          tag: ${{ needs.check-version.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          replacesArtifacts: false
+          artifacts: hab.pex,bin/hab,hab.exe,bin/hab.ps1
+
+  windows-package:
+    runs-on: windows-latest
+    needs: check-version
+    if: ${{ needs.check-version.outputs.upgrade == '1' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
       - name: package
-        if: ${{ steps.check_version.outputs.UPGRADE == '1' || github.event_name == 'workflow_dispatch' }}
+        run: |
+          pip install -e .[dev]
+          .\package.ps1
+      - name: upload windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: habitat-windows-artifact
+          path: .\dist\hab.exe
+
+  package:
+    runs-on: ubuntu-latest
+    needs: check-version
+    if: ${{ needs.check-version.outputs.upgrade == '1' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: package
         run: |
           make install_dev
           make package
-      - name: release
-        uses: ncipollo/release-action@v1
-        if: ${{ steps.check_version.outputs.UPGRADE == '1'  || github.event_name == 'workflow_dispatch' }}
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.check_version.outputs.VERSION }}
-          tag: ${{ steps.check_version.outputs.VERSION }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          replacesArtifacts: false
-          artifacts: hab.pex,bin/hab
+          name: habitat-artifact
+          path: hab.pex
