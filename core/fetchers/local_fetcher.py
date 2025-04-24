@@ -4,6 +4,7 @@
 
 import logging
 import os.path
+import platform
 import shutil
 
 from core.exceptions import HabitatException
@@ -19,7 +20,7 @@ class LocalFetcher(Fetcher):
         self.symlink = symlink
 
     async def fetch(self, *args, **kwargs):
-        disable_link = not self.symlink
+        disable_link = not self.symlink or platform.system() == 'Windows'
         if not self.reference.fetched:
             event = self.reference.parent.event_manager.register_consumer(str(self.reference.name))
             logging.debug(f'Reference component {self.reference} has not been fetched yet, waiting on event {event}')

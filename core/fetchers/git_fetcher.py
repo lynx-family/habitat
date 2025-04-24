@@ -259,6 +259,7 @@ class GitFetcher(Fetcher):
             for p in patch_path:
                 await apply_patches(p, source_dir)
 
+        target_dir = os.path.abspath(target_dir)
         if target_dir != source_dir and not options.raw:
             move(source_dir, target_dir)
         elif target_dir != source_dir:

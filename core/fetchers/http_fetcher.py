@@ -9,6 +9,7 @@ import logging
 import os
 import platform
 import shutil
+import stat
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -47,13 +48,31 @@ def convert_url_to_cache_path(url: str) -> str:
     return os.path.join(*[u for u in url.split('/') if u and u not in ['http:', 'https:']])
 
 
+def _rmtree(target_dir):
+    if sys.version_info < (3, 12, 0):
+        shutil.rmtree(target_dir, ignore_errors=True, onerror=on_fs_error)
+    else:
+        shutil.rmtree(target_dir, ignore_errors=True, onexc=on_fs_error)
+
+
+def on_fs_error(func, path, _):
+    if platform.system() == 'Windows':
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+
 def move_to_target_dir(temp_dir, target_dir, is_single_file):
     sub_dirs = os.listdir(temp_dir)
+    path = temp_dir
     # remove nested folder
     if len(sub_dirs) == 1 and (os.path.isdir(os.path.join(temp_dir, sub_dirs[0])) or is_single_file):
-        shutil.move(os.path.join(temp_dir, sub_dirs[0]), target_dir)
-    else:
-        shutil.move(temp_dir, target_dir)
+        path = os.path.join(temp_dir, sub_dirs[0])
+
+    if platform.system() == 'Windows' and os.path.exists(str(target_dir)):
+        os.chmod(target_dir, stat.S_IWRITE)
+        os.chmod(path, stat.S_IWRITE)
+        _rmtree(target_dir)
+    shutil.move(path, target_dir)
 
 
 def check_target_dir_existence(target_dir: str, override_exist: bool):
@@ -66,7 +85,7 @@ def check_target_dir_existence(target_dir: str, override_exist: bool):
         return
     elif os.path.isdir(target_dir):
         logging.debug(f'directory {target_dir} is going to be overridden')
-        shutil.rmtree(target_dir, ignore_errors=True)
+        _rmtree(target_dir)
     else:
         logging.debug(f'file {target_dir} is going to be overridden')
         os.remove(target_dir)
@@ -163,7 +182,7 @@ class HttpFetcher(Fetcher, CacheMixin):
         for path in paths:
             move_to_target_dir(os.path.join(temp_dir, path), target_dir, False)
 
-        shutil.rmtree(temp_dir, ignore_errors=True)
+        _rmtree(target_dir)
 
     async def _download_part(self, item: str, start, end, callback=None):
         logging.debug(f'download part [{start}, {end}] of {item}')
