@@ -182,7 +182,7 @@ class HttpFetcher(Fetcher, CacheMixin):
         for path in paths:
             move_to_target_dir(os.path.join(temp_dir, path), target_dir, False)
 
-        _rmtree(target_dir)
+        _rmtree(temp_dir)
 
     async def _download_part(self, item: str, start, end, callback=None):
         logging.debug(f'download part [{start}, {end}] of {item}')
