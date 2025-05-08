@@ -50,12 +50,15 @@ def convert_url_to_cache_path(url: str) -> str:
 
 def _rmtree(target_dir):
     if sys.version_info < (3, 12, 0):
-        shutil.rmtree(target_dir, ignore_errors=True, onerror=on_fs_error)
+        shutil.rmtree(target_dir, onerror=on_fs_error)
     else:
-        shutil.rmtree(target_dir, ignore_errors=True, onexc=on_fs_error)
+        shutil.rmtree(target_dir, onexc=on_fs_error)
 
 
 def on_fs_error(func, path, _):
+    if not os.path.exists(str(path)):
+        return
+
     if platform.system() == 'Windows':
         os.chmod(path, stat.S_IWRITE)
         func(path)
