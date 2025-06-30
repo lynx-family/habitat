@@ -30,6 +30,7 @@ from collections import defaultdict
 from pathlib import Path
 from zipfile import ZipFile
 
+from core.components.deps_env import DepsEnvBuild
 from core.exceptions import HabitatException
 from core.settings import CACHE_DIR_PREFIX
 
@@ -499,7 +500,7 @@ def is_git_repo_valid(source_dir):
 
 
 def eval_deps(deps_file, target, root_dir):
-    env = {"target": target, "root_dir": root_dir}
+    env = DepsEnvBuild.get_deps_env({"target": target, "root_dir": root_dir})
     if hasattr(deps_file, 'read'):
         exec(deps_file.read(), env)
     else:

@@ -13,6 +13,7 @@ from pathlib import Path
 from core import __version__, components
 from core.common.error_code import ERROR_INCOMPATIBLE_VERSION
 from core.components.dependency_group import DependencyGroup
+from core.components.deps_env import DepsEnvBuild
 from core.exceptions import HabitatException
 from core.fetchers.git_fetcher import GitFetcher
 from core.settings import DEFAULT_CONFIG_FILE_NAME, DEFAULT_DEPS_CACHE_FILE_NAME, ENTRIES_CACHE_TAG_PREFIX
@@ -46,7 +47,7 @@ def load_entries_cache_from_git(root_dir=None):
 
 
 def load_solutions(root_dir, solution_file, ignore_non_existing=False, enable_version_checking=True):
-    env = {}
+    env = DepsEnvBuild.get_deps_env()
     if hasattr(solution_file, 'read'):
         exec(solution_file.read(), env)
     else:
@@ -80,7 +81,7 @@ def load_solutions(root_dir, solution_file, ignore_non_existing=False, enable_ve
 
 
 def load_mapping_file(mapping_file_path):
-    env = {}
+    env = DepsEnvBuild.get_deps_env()
     if not os.path.exists(mapping_file_path):
         return None
     with open(mapping_file_path, 'r') as f:
