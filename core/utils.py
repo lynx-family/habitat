@@ -423,7 +423,10 @@ def find_classes(module, is_target=None, handle_error=None, recursive=True):
 
 def create_temp_dir(root_dir=os.getcwd(), name=None):
     cache_dir = os.path.join(root_dir, f'{CACHE_DIR_PREFIX}{name + "-" if name else ""}{random_string()}')
-    os.mkdir(cache_dir)
+    if platform.system() == 'Windows':
+        os.mkdir(cache_dir, mode=stat.S_IWRITE)
+    else:
+        os.mkdir(cache_dir)
     return cache_dir
 
 
