@@ -64,7 +64,7 @@ def is_subdir(sub, parent):
 def format_exception(e):
     et, ev, tb = sys.exc_info()
     msg = traceback.format_exception(et, ev, tb)
-    return '\n'.join(msg)
+    return "\n".join(msg)
 
 
 async def async_check_call(*args, retry=0, **kwargs):
@@ -75,7 +75,9 @@ async def async_check_call(*args, retry=0, **kwargs):
             return await to_thread(check_call, *args, **kwargs)
         except subprocess.CalledProcessError as e:
             if remained_chances > 0:
-                logging.warning(f'Got an exception {e} during running command {args} {kwargs}, retry')
+                logging.warning(
+                    f"Got an exception {e} during running command {args} {kwargs}, retry"
+                )
             else:
                 raise e
 
@@ -88,30 +90,32 @@ async def async_check_output(*args, retry=0, **kwargs):
             return await to_thread(check_output, *args, **kwargs)
         except subprocess.CalledProcessError as e:
             if remained_chances > 0:
-                logging.warning(f'Got an exception {e} during running command {args} {kwargs}, retry')
+                logging.warning(
+                    f"Got an exception {e} during running command {args} {kwargs}, retry"
+                )
             else:
                 raise e
 
 
 def check_output(*args, **kwargs):
-    logging.debug(f'Run command: {args[0]} (args: {args} kwargs: {kwargs}')
+    logging.debug(f"Run command: {args[0]} (args: {args} kwargs: {kwargs}")
     output = subprocess.check_output(*args, **kwargs)
-    logging.debug(f'Command {args[0]} end')
+    logging.debug(f"Command {args[0]} end")
     return output
 
 
 def check_call(*args, **kwargs):
-    logging.debug(f'Run command: {args[0]} (args: {args} kwargs: {kwargs}')
+    logging.debug(f"Run command: {args[0]} (args: {args} kwargs: {kwargs}")
     subprocess.check_call(*args, **kwargs)
-    logging.debug(f'Command {args[0]} end')
+    logging.debug(f"Command {args[0]} end")
 
 
 def convert_git_url_to_http(url, auth=None):
-    if url.startswith('git@'):
-        url = '/'.join(url.rsplit(':', 1))
-    url = url.replace("git@", 'https://')
+    if url.startswith("git@"):
+        url = "/".join(url.rsplit(":", 1))
+    url = url.replace("git@", "https://")
     if auth:
-        url = url.replace('://', f'://{auth}@')
+        url = url.replace("://", f"://{auth}@")
     return url
 
 
@@ -127,20 +131,22 @@ def destinsrc(src, dst):
 
 def samefile(src, dst):
     # Macintosh, Unix.
-    if isinstance(src, os.DirEntry) and hasattr(os.path, 'samestat'):
+    if isinstance(src, os.DirEntry) and hasattr(os.path, "samestat"):
         try:
             return os.path.samestat(src.stat(), os.stat(dst))
         except OSError:
             return False
 
-    if hasattr(os.path, 'samefile'):
+    if hasattr(os.path, "samefile"):
         try:
             return os.path.samefile(src, dst)
         except OSError:
             return False
 
     # All other platforms: check for same pathname.
-    return os.path.normcase(os.path.abspath(src)) == os.path.normcase(os.path.abspath(dst))
+    return os.path.normcase(os.path.abspath(src)) == os.path.normcase(
+        os.path.abspath(dst)
+    )
 
 
 def move(src, dst, copy_function=shutil.copy2):
@@ -192,22 +198,25 @@ def move(src, dst, copy_function=shutil.copy2):
             os.unlink(src)
         elif os.path.isdir(src):
             if destinsrc(src, dst):
-                raise Exception("Cannot move a directory '%s' into itself"
-                                " '%s'." % (src, dst))
+                raise Exception(
+                    "Cannot move a directory '%s' into itself" " '%s'." % (src, dst)
+                )
 
             def _is_immutable(f):
                 st = f.stat() if isinstance(f, os.DirEntry) else os.stat(f)
                 immutable_states = [stat.UF_IMMUTABLE, stat.SF_IMMUTABLE]
-                return hasattr(st, 'st_flags') and st.st_flags in immutable_states
+                return hasattr(st, "st_flags") and st.st_flags in immutable_states
 
-            if (_is_immutable(src) or (
-                not os.access(src, os.W_OK) and os.listdir(src) and sys.platform == 'darwin'
-            )):
-                raise PermissionError("Cannot move the non-empty directory "
-                                      "'%s': Lacking write permission to '%s'."
-                                      % (src, src))
-            shutil.copytree(src, real_dst, copy_function=copy_function,
-                            symlinks=True)
+            if _is_immutable(src) or (
+                not os.access(src, os.W_OK)
+                and os.listdir(src)
+                and sys.platform == "darwin"
+            ):
+                raise PermissionError(
+                    "Cannot move the non-empty directory "
+                    "'%s': Lacking write permission to '%s'." % (src, src)
+                )
+            shutil.copytree(src, real_dst, copy_function=copy_function, symlinks=True)
             rmtree(src)
         else:
             copy_function(src, real_dst)
@@ -231,7 +240,9 @@ def convert_to_posix_path(path):
 
 
 def get_head_commit_id(**kwargs):
-    return subprocess.check_output(['git', 'rev-parse', 'HEAD'], **kwargs).decode().strip()
+    return (
+        subprocess.check_output(["git", "rev-parse", "HEAD"], **kwargs).decode().strip()
+    )
 
 
 def get_full_commit_id(short_id, url):
@@ -240,7 +251,7 @@ def get_full_commit_id(short_id, url):
     for line in output.decode().splitlines():
         if line.startswith(short_id):
             return line.split()[0].strip()
-    raise Exception(f'commit id {short_id} not found on remote')
+    raise Exception(f"commit id {short_id} not found on remote")
 
 
 def ignore_paths_in_git(root_dir: str, paths: list, ignore_errors=False):
@@ -250,31 +261,34 @@ def ignore_paths_in_git(root_dir: str, paths: list, ignore_errors=False):
         if os.path.isabs(path):
             path = relative_path(root_dir, path)
             path = Path(path).as_posix()
-        cmd = f'git check-ignore -q {path}'
+        cmd = f"git check-ignore -q {path}"
         try:
             check_call(cmd, shell=True, cwd=root_dir, stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError:
-            logging.debug(f'path {path} will be ignored in main repository')
-            ignored_paths.append('/' + path)
+            logging.debug(f"path {path} will be ignored in main repository")
+            ignored_paths.append("/" + path)
 
     try:
-        git_dir = Path(root_dir) / Path('.git')
+        git_dir = Path(root_dir) / Path(".git")
         if os.path.isfile(git_dir):
-            with open(git_dir, 'r') as f:
-                matches = re.match(r'gitdir: (.*)', f.read())
+            with open(git_dir, "r") as f:
+                matches = re.match(r"gitdir: (.*)", f.read())
                 if not matches:
-                    logging.warning(f'unrecognized git dir {git_dir}')
+                    logging.warning(f"unrecognized git dir {git_dir}")
                 git_dir = matches.group(1).strip()
-        exclude_file = Path(git_dir) / Path('info/exclude')
+        exclude_file = Path(git_dir) / Path("info/exclude")
         if not os.path.exists(os.path.dirname(exclude_file)):
             os.makedirs(os.path.dirname(exclude_file))
 
         if os.path.exists(exclude_file):
-            with open(exclude_file, 'r') as f:
-                ignored_paths = set(ignored_paths + [line.strip() for line in f.readlines() if line.strip()])
+            with open(exclude_file, "r") as f:
+                ignored_paths = set(
+                    ignored_paths
+                    + [line.strip() for line in f.readlines() if line.strip()]
+                )
 
-        with open(exclude_file, 'w') as f:
-            f.write('\n'.join(ignored_paths) + '\n')
+        with open(exclude_file, "w") as f:
+            f.write("\n".join(ignored_paths) + "\n")
 
     except Exception as e:
         if ignore_errors:
@@ -294,7 +308,7 @@ def relative_path(base, sub):
 
 def get_md5_of_file(path):
     m = hashlib.md5()
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         while True:
             data = f.read(4096 * 1024)
             if not data:
@@ -313,7 +327,7 @@ def create_symlink(src_path, dst_path):
 
     if os.path.exists(src_path):
         os.symlink(src_path, dst_path)
-        logging.info(f'Symbolic link created from {dst_path} to {src_path}')
+        logging.info(f"Symbolic link created from {dst_path} to {src_path}")
 
 
 def match_patterns(target, patterns):
@@ -324,20 +338,20 @@ def match_patterns(target, patterns):
 
 
 def is_git_url(url):
-    return url.startswith(('git@', 'ssh://', 'https://', 'http://', 'file://'))
+    return url.startswith(("git@", "ssh://", "https://", "http://", "file://"))
 
 
 def is_http_url(url):
-    return url.startswith(('https://', 'http://'))
+    return url.startswith(("https://", "http://"))
 
 
 def is_git_sha(revision):
     """Returns true if the given string is a valid hex-encoded sha"""
-    return re.match('^[a-fA-F0-9]{6,40}$', revision) is not None
+    return re.match("^[a-fA-F0-9]{6,40}$", revision) is not None
 
 
 def random_string(size=8, chars=string.ascii_letters + string.digits):
-    return ''.join(random.choice(chars) for _ in range(size))
+    return "".join(random.choice(chars) for _ in range(size))
 
 
 def is_git_root(path):
@@ -351,18 +365,18 @@ def is_bare_git_repo(path):
     if not os.path.exists(path):
         return False
 
-    cmd = f'git -C {path} rev-parse --is-bare-repository'
+    cmd = f"git -C {path} rev-parse --is-bare-repository"
     try:
         output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
         return False
-    return output.decode().strip() == 'true'
+    return output.decode().strip() == "true"
 
 
 def is_git_repo(path):
     if not os.path.exists(path):
         return False
-    cmd = f'git -C {path} rev-parse'
+    cmd = f"git -C {path} rev-parse"
     try:
         check_output(cmd, shell=True, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
@@ -372,18 +386,21 @@ def is_git_repo(path):
 
 
 def git_root_dir(path=None):
-    command = ['git', 'rev-parse', '--show-toplevel']
-    p = subprocess.Popen(' '.join(command),
-                         stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE,
-                         shell=True, cwd=path)
+    command = ["git", "rev-parse", "--show-toplevel"]
+    p = subprocess.Popen(
+        " ".join(command),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True,
+        cwd=path,
+    )
     result, error = p.communicate()
     if p.returncode and error:
         raise HabitatException(
-            'Error, can not get git root in path %s, '
-            'make sure it is a git repo: %s' % (error.decode('utf-8'), path)
+            "Error, can not get git root in path %s, "
+            "make sure it is a git repo: %s" % (error.decode("utf-8"), path)
         )
-    return Path(result.decode('utf-8').strip())
+    return Path(result.decode("utf-8").strip())
 
 
 def find_classes(module, is_target=None, handle_error=None, recursive=True):
@@ -392,7 +409,7 @@ def find_classes(module, is_target=None, handle_error=None, recursive=True):
     if not inspect.ismodule(module):
         return classes
     for info, name, is_pkg in pkgutil.iter_modules(module.__path__):
-        full_name = module.__name__ + '.' + name
+        full_name = module.__name__ + "." + name
         mod = sys.modules.get(full_name)
         if not mod:
             try:
@@ -413,11 +430,18 @@ def find_classes(module, is_target=None, handle_error=None, recursive=True):
                 [
                     c[1]
                     for c in inspect.getmembers(mod, inspect.isclass)
-                    if ((is_target is None or is_target(c[1])) and c[1].__module__ == mod.__name__)
+                    if (
+                        (is_target is None or is_target(c[1]))
+                        and c[1].__module__ == mod.__name__
+                    )
                 ]
             )
     for m in submodules:
-        classes = classes.union(find_classes(m, is_target=is_target, handle_error=handle_error, recursive=recursive))
+        classes = classes.union(
+            find_classes(
+                m, is_target=is_target, handle_error=handle_error, recursive=recursive
+            )
+        )
     return classes
 
 
@@ -454,41 +478,48 @@ class ProgressBar:
 
     def update(self, n=1):
         self.current += n
-        percent = '{:.2%}'.format(self.current / self.total)
-        sys.stdout.write('\r')
-        sys.stdout.write('%s[%-50s] %s' % (self.title, '=' * int(math.floor(self.current * 50 / self.total)), percent))
+        percent = "{:.2%}".format(self.current / self.total)
+        sys.stdout.write("\r")
+        sys.stdout.write(
+            "%s[%-50s] %s"
+            % (
+                self.title,
+                "=" * int(math.floor(self.current * 50 / self.total)),
+                percent,
+            )
+        )
         sys.stdout.flush()
         if self.current == self.total:
-            sys.stdout.write('\n')
+            sys.stdout.write("\n")
 
 
 async def set_git_alternates(source_dir, objects_dir):
-    info_dir = os.path.join(source_dir, '.git', 'objects', 'info')
+    info_dir = os.path.join(source_dir, ".git", "objects", "info")
     if not os.path.isdir(info_dir):
-        raise HabitatException(f'directory {info_dir} does not exist')
-    with open(os.path.join(info_dir, 'alternates'), 'w') as f:
+        raise HabitatException(f"directory {info_dir} does not exist")
+    with open(os.path.join(info_dir, "alternates"), "w") as f:
         f.write(objects_dir)
 
 
 async def clear_git_alternates(source_dir):
-    alternates_file = os.path.join(source_dir, '.git', 'objects', 'info', 'alternates')
+    alternates_file = os.path.join(source_dir, ".git", "objects", "info", "alternates")
     if os.path.exists(alternates_file):
-        cmd = 'git repack -a -d -q'
+        cmd = "git repack -a -d -q"
         await async_check_call(cmd, shell=True, cwd=source_dir)
         os.remove(alternates_file)
 
 
 def is_git_repo_valid(source_dir):
     try:
-        cmd = 'git status'
+        cmd = "git status"
         check_output(cmd, shell=True, cwd=source_dir, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
         return False
 
-    alternates_file = os.path.join(source_dir, '.git', 'objects', 'info', 'alternates')
+    alternates_file = os.path.join(source_dir, ".git", "objects", "info", "alternates")
     if not os.path.exists(alternates_file):
         return True
-    with open(alternates_file, 'r') as f:
+    with open(alternates_file, "r") as f:
         for line in f.readlines():
             line = line.strip()
             if not line:
@@ -500,20 +531,20 @@ def is_git_repo_valid(source_dir):
 
 def eval_deps(deps_file, target, root_dir):
     env = {"target": target, "root_dir": root_dir}
-    if hasattr(deps_file, 'read'):
+    if hasattr(deps_file, "read"):
         exec(deps_file.read(), env)
     else:
-        with open(deps_file, 'rb') as f:
+        with open(deps_file, "rb") as f:
             exec(f.read(), env)
 
-    if 'deps' not in env:
-        raise HabitatException(f'Can not find deps in file {deps_file}')
+    if "deps" not in env:
+        raise HabitatException(f"Can not find deps in file {deps_file}")
     return env["deps"]
 
 
 def extract_zipfile(src: str, dst: str, paths: list):
-    z = ZipFile(src, 'r')
-    paths = [p.rstrip('/') for p in paths]
+    z = ZipFile(src, "r")
+    paths = [p.rstrip("/") for p in paths]
     for z_info in z.infolist():
         file, mode = z_info.filename, z_info.external_attr >> 16
         if paths and not match_paths(file, paths):
@@ -532,19 +563,16 @@ def extract_zipfile(src: str, dst: str, paths: list):
 def extract_tarfile(src: str, dst: str, paths: list):
     if not os.path.exists(dst):
         os.makedirs(dst)
-    tar = 'tar.exe' if platform.system().lower() == 'windows' else 'tar'
+    tar = "tar.exe" if platform.system().lower() == "windows" else "tar"
     subprocess.run(f"{tar} -xpf {src} -C {dst} {' '.join(paths)}", shell=True)
 
 
 UNPACK_FORMAT_EXTENSIONS = {
-    'zip': ['.aar', '.jar', '.zip'],
-    'tar': ['.bz2', '.tbz2', '.gz', '.tgz', '.tar', '.xz', '.txz']
+    "zip": [".aar", ".jar", ".zip"],
+    "tar": [".bz2", ".tbz2", ".gz", ".tgz", ".tar", ".xz", ".txz"],
 }
 
-UNPACK_FORMAT_EXTRACTION = {
-    'zip': extract_zipfile,
-    'tar': extract_tarfile
-}
+UNPACK_FORMAT_EXTRACTION = {"zip": extract_zipfile, "tar": extract_tarfile}
 
 
 def extract_archive(src: str, dst: str, paths: list):
@@ -555,7 +583,7 @@ def extract_archive(src: str, dst: str, paths: list):
             archive_format = fmt
 
     if not archive_format:
-        raise HabitatException(f'file {src} is not a supported archive format.')
+        raise HabitatException(f"file {src} is not a supported archive format.")
 
     func = UNPACK_FORMAT_EXTRACTION.get(archive_format)
     func(src, dst, paths)
@@ -564,24 +592,24 @@ def extract_archive(src: str, dst: str, paths: list):
 
 def print_all_exception(e: BaseException):
     upper_exception = e.__cause__ or e.__context__
-    logging.error(f'{type(e).__name__}: {e}')
+    logging.error(f"{type(e).__name__}: {e}")
     if upper_exception:
         print_all_exception(upper_exception)
 
 
 def literally_replace(content: str, config):
     for token, value in config:
-        content = content.replace(f'{{{token}}}', value)
+        content = content.replace(f"{{{token}}}", value)
     return content
 
 
 async def is_git_user_set() -> bool:
     try:
         await async_check_output(
-            shlex.split('git config user.name'), stderr=subprocess.STDOUT
+            shlex.split("git config user.name"), stderr=subprocess.STDOUT
         )
         await async_check_output(
-            shlex.split('git config user.email'), stderr=subprocess.STDOUT
+            shlex.split("git config user.email"), stderr=subprocess.STDOUT
         )
     except subprocess.CalledProcessError:
         return False
@@ -593,7 +621,7 @@ class DependencyGraph:
     def __init__(self, deps: dict) -> None:
         self.node_requirements = defaultdict(list)
         for dep_name, dep in deps.items():
-            requirements = getattr(dep, 'require', [])
+            requirements = getattr(dep, "require", [])
             self.node_requirements[dep_name].extend(requirements)
 
 

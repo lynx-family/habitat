@@ -13,19 +13,18 @@ from core.utils import async_check_output
 
 
 class ActionDependency(Component):
-    type = 'action'
+    type = "action"
     defined_fields = {
-        'commands': {
-            'validator': lambda val, config: isinstance(val, Iterable) or isinstance(val, str),
-            'default': []
+        "commands": {
+            "validator": lambda val, config: isinstance(val, Iterable)
+            or isinstance(val, str),
+            "default": [],
         },
-        'function': {
-            'validator': lambda val, config: isinstance(val, Callable) or val is None,
-            'default': None
+        "function": {
+            "validator": lambda val, config: isinstance(val, Callable) or val is None,
+            "default": None,
         },
-        'cwd': {
-            'optional': True
-        }
+        "cwd": {"optional": True},
     }
     source_attributes = []
     source_stamp_attributes = []
@@ -34,11 +33,13 @@ class ActionDependency(Component):
     def source_stamp(self):
         return "(action)"
 
-    async def fetch(self, root_dir, options, existing_sources=None, existing_targets=None):
-        logging.info(f'Run action {self.name}')
+    async def fetch(
+        self, root_dir, options, existing_sources=None, existing_targets=None
+    ):
+        logging.info(f"Run action {self.name}")
         commands = self.commands
-        env = getattr(self, 'env', {})
-        cwd = getattr(self, 'cwd', None)
+        env = getattr(self, "env", {})
+        cwd = getattr(self, "cwd", None)
         cwd = os.path.join(root_dir, cwd) if cwd else root_dir
 
         if self.function:
@@ -49,19 +50,28 @@ class ActionDependency(Component):
 
         try:
             for command in commands:
-                logging.info(f'Run command {command} in path {cwd}')
+                logging.info(f"Run command {command} in path {cwd}")
                 await async_check_output(
                     command,
-                    shell=isinstance(command, str), stderr=subprocess.STDOUT, cwd=cwd, env={**os.environ.copy(), **env}
+                    shell=isinstance(command, str),
+                    stderr=subprocess.STDOUT,
+                    cwd=cwd,
+                    env={**os.environ.copy(), **env},
                 )
             self.on_fetched(root_dir, options)
         except subprocess.CalledProcessError as e:
-            logging.error(f'a command has failed recently, original output:\n{e.output.decode()}')
-            raise HabitatException(f'failed to run action {commands} in {self.target_dir}') from e
+            logging.error(
+                f"a command has failed recently, original output:\n{e.output.decode()}"
+            )
+            raise HabitatException(
+                f"failed to run action {commands} in {self.target_dir}"
+            ) from e
         except Exception as e:
-            raise HabitatException(f'failed to run action {commands} in {self.target_dir}') from e
+            raise HabitatException(
+                f"failed to run action {commands} in {self.target_dir}"
+            ) from e
         finally:
-            if hasattr(self, 'parent') and self.parent:
+            if hasattr(self, "parent") and self.parent:
                 self.parent.produce_event(self.name)
 
     def up_to_date(self):

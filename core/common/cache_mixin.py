@@ -15,7 +15,8 @@ class CacheMixin:
     1. cache expiration
     2. cache existence
     """
-    cache_dir = os.path.join(GLOBAL_CACHE_DIR, 'objects')
+
+    cache_dir = os.path.join(GLOBAL_CACHE_DIR, "objects")
 
     def get_from_cache(self, key):
         if self.cache_dir is None:
@@ -34,7 +35,7 @@ class CacheMixin:
             if path:
                 shutil.copy2(path, cache_path)
             elif content:
-                with open(cache_path, 'wb') as f:
+                with open(cache_path, "wb") as f:
                     f.write(content)
             else:
                 raise HabitatException('either "path" or "content" is required')
