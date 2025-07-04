@@ -10,25 +10,19 @@ from core.utils import is_git_sha, is_git_url
 
 
 class GitDependency(Component):
-    type = 'git'
+    type = "git"
     defined_fields = {
         "url": {
             "type": str,
             "validator": lambda val, component: is_git_url(val),
         },
-        "branch": {
-            "type": str,
-            "optional": True
-        },
+        "branch": {"type": str, "optional": True},
         "commit": {
             "type": str,
             "validator": lambda val, component: is_git_sha(val),
-            "optional": True
+            "optional": True,
         },
-        "tag": {
-            "type": str,
-            "optional": True
-        },
+        "tag": {"type": str, "optional": True},
         "enable_lfs": {
             "type": bool,
             "optional": True,
@@ -37,14 +31,14 @@ class GitDependency(Component):
         "patches": {
             "type": Union[str, list],
             "optional": True,
-        }
+        },
     }
-    source_attributes = ['url']
-    source_stamp_attributes = ['branch', 'commit', 'tag']
+    source_attributes = ["url"]
+    source_stamp_attributes = ["branch", "commit", "tag"]
 
     def __init__(self, *args, **kwargs):
         super(GitDependency, self).__init__(*args, **kwargs)
         self.fetcher = GitFetcher(self)
 
     def up_to_date(self):
-        return is_git_sha(getattr(self, 'commit', '')) and super().up_to_date()
+        return is_git_sha(getattr(self, "commit", "")) and super().up_to_date()
