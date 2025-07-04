@@ -16,14 +16,14 @@ class KeyValueStorage:
         self.file_path = file_path
         self.data = {}
         try:
-            with open(self.file_path, 'r') as f:
+            with open(self.file_path, "r") as f:
                 self.data = json.load(f)
         except FileNotFoundError:
             pass
 
     def set(self, key, value):
         self.data[key] = value
-        with open(self.file_path, 'w') as f:
+        with open(self.file_path, "w") as f:
             json.dump(self.data, f)
 
     def get(self, key):
@@ -32,5 +32,5 @@ class KeyValueStorage:
     def delete(self, key):
         if key in self.data:
             del self.data[key]
-            with open(self.file_path, 'w') as f:
+            with open(self.file_path, "w") as f:
                 json.dump(self.data, f)

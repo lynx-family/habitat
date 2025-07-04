@@ -20,12 +20,18 @@ class LocalFetcher(Fetcher):
         self.symlink = symlink
 
     async def fetch(self, *args, **kwargs):
-        disable_link = not self.symlink or platform.system() == 'Windows'
+        disable_link = not self.symlink or platform.system() == "Windows"
         if not self.reference.fetched:
-            event = self.reference.parent.event_manager.register_consumer(str(self.reference.name))
-            logging.debug(f'Reference component {self.reference} has not been fetched yet, waiting on event {event}')
+            event = self.reference.parent.event_manager.register_consumer(
+                str(self.reference.name)
+            )
+            logging.debug(
+                f"Reference component {self.reference} has not been fetched yet, waiting on event {event}"
+            )
             await event.wait()
-            logging.debug(f'Got event {event}, start to fetch component {self.component}')
+            logging.debug(
+                f"Got event {event}, start to fetch component {self.component}"
+            )
 
         for path in self.reference.fetched_paths:
             relpath = os.path.relpath(path, self.reference.target_dir)
@@ -34,9 +40,9 @@ class LocalFetcher(Fetcher):
             if disable_link:
                 # if dst is an existing symlink, delete it or copytree() will throw an exception
                 if os.path.islink(dst):
-                    logging.debug(f'{dst} is an existing symlink, remove it.')
+                    logging.debug(f"{dst} is an existing symlink, remove it.")
                     os.remove(dst)
-                logging.debug(f'Copying {src} to {dst} instead of creating symlink.')
+                logging.debug(f"Copying {src} to {dst} instead of creating symlink.")
                 shutil.copytree(src, dst, symlinks=True, dirs_exist_ok=True)
                 continue
 
@@ -46,21 +52,23 @@ class LocalFetcher(Fetcher):
             # if src and dst is the same path in normpath, just continue
             if os.path.normpath(src) == os.path.normpath(dst):
                 logging.warning(
-                    f'src path is the same as dst path when creating symlink\n'
-                    f'src: {src}\n'
-                    f'dst: {dst}'
+                    f"src path is the same as dst path when creating symlink\n"
+                    f"src: {src}\n"
+                    f"dst: {dst}"
                 )
                 continue
             # if dst is already a directory, symlink will fail. just continue
             if os.path.exists(dst):
                 logging.warning(
-                    f'dst path {dst} is already a directory, delete it then create symlink'
+                    f"dst path {dst} is already a directory, delete it then create symlink"
                 )
                 continue
 
             try:
                 create_symlink(src, dst)
             except Exception as e:
-                raise HabitatException(f'an error occurred when trying to create symlink from {src} to {dst}') from e
+                raise HabitatException(
+                    f"an error occurred when trying to create symlink from {src} to {dst}"
+                ) from e
 
         return self.reference.fetched_paths

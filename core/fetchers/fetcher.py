@@ -10,20 +10,13 @@ if TYPE_CHECKING:
 
 
 class Fetcher(ABC):
-    defined_fields = {
-        "type": {
-            "type": str
-        },
-        "condition": {
-            "default": True
-        }
-    }
+    defined_fields = {"type": {"type": str}, "condition": {"default": True}}
 
-    def __init__(self, component: 'Component'):
+    def __init__(self, component: "Component"):
         self._component = component
 
     @property
-    def component(self) -> 'Component':
+    def component(self) -> "Component":
         return self._component
 
     @abstractmethod

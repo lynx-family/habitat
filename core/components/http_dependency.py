@@ -8,29 +8,15 @@ from core.utils import is_http_url
 
 
 class HttpDependency(Component):
-    type = 'http'
+    type = "http"
     defined_fields = {
-        "url": {
-            "type": str,
-            "validator": lambda value, component: is_http_url(value)
-        },
-        "sha256": {
-            "type": str,
-            "optional": True
-        },
-        "decompress": {
-            "type": bool,
-            "optional": True,
-            "default": True
-        },
-        "paths": {
-            "type": list,
-            "optional": True,
-            "default": []
-        }
+        "url": {"type": str, "validator": lambda value, component: is_http_url(value)},
+        "sha256": {"type": str, "optional": True},
+        "decompress": {"type": bool, "optional": True, "default": True},
+        "paths": {"type": list, "optional": True, "default": []},
     }
-    source_attributes = ['url']
-    source_stamp_attributes = ['url']
+    source_attributes = ["url"]
+    source_stamp_attributes = ["url"]
 
     def __init__(self, *args, **kwargs):
         super(HttpDependency, self).__init__(*args, **kwargs)

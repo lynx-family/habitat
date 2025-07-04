@@ -12,7 +12,7 @@ from core.utils import git_root_dir
 
 
 class PartialFormatter(string.Formatter):
-    def __init__(self, missing='~'):
+    def __init__(self, missing="~"):
         self.missing = missing
 
     def get_field(self, field_name, args, kwargs):
@@ -25,65 +25,64 @@ class PartialFormatter(string.Formatter):
 
 
 class Deps(Command):
-    name = 'deps'
-    help = 'List or manage dependencies'
+    name = "deps"
+    help = "List or manage dependencies"
     args = [
         {
-            'flags': ['-r', '--raw'],
-            'help': 'print dependencies raw info',
-            'action': 'store_true',
-            'default': False
+            "flags": ["-r", "--raw"],
+            "help": "print dependencies raw info",
+            "action": "store_true",
+            "default": False,
         },
         {
-            'flags': ['--source-stamp'],
-            'help': 'only print source stamp',
-            'action': 'store_true',
-            'default': False
+            "flags": ["--source-stamp"],
+            "help": "only print source stamp",
+            "action": "store_true",
+            "default": False,
+        },
+        {"flags": ["--format"], "help": "format print", "default": None},
+        {
+            "flags": ["--target"],
+            "help": "Target to list all dependencies for, this argument can be accessed "
+            "as a global variable in deps file",
+            "default": None,
         },
         {
-            'flags': ['--format'],
-            'help': 'format print',
-            'default': None
+            "flags": ["--type"],
+            "help": "filter by type, only works with --source-stamp or --format",
+            "default": None,
         },
         {
-            'flags': ['--target'],
-            'help': 'Target to list all dependencies for, this argument can be accessed '
-                    'as a global variable in deps file',
-            'default': None
+            "flags": ["--name"],
+            "help": "filter by name, only works with --source-stamp or --format",
+            "default": None,
         },
         {
-            'flags': ['--type'],
-            'help': 'filter by type, only works with --source-stamp or --format',
-            'default': None
+            "flags": ["root"],
+            "help": "Source root of the codebase, default to the root of current git repository if not set",
+            "nargs": "?",
+            "default": None,
         },
         {
-            'flags': ['--name'],
-            'help': 'filter by name, only works with --source-stamp or --format',
-            'default': None
+            "flags": ["--ignore-condition"],
+            "help": "Ignore condition and list all deps",
+            "action": "store_true",
+            "default": False,
         },
-        {
-            'flags': ['root'],
-            'help': 'Source root of the codebase, default to the root of current git repository if not set',
-            'nargs': '?',
-            'default': None
-        },
-        {
-            'flags': ['--ignore-condition'],
-            'help': 'Ignore condition and list all deps',
-            'action': 'store_true',
-            'default': False
-        }
     ]
 
     async def run(self, options, *args, **kwargs):
         root_dir = os.path.abspath(options.root or git_root_dir())
         solution_file = os.path.join(root_dir, DEFAULT_CONFIG_FILE_NAME)
         solutions = load_solutions(
-            root_dir, solution_file, ignore_non_existing=False, enable_version_checking=COMPATIBLE_CHECK
+            root_dir,
+            solution_file,
+            ignore_non_existing=False,
+            enable_version_checking=COMPATIBLE_CHECK,
         )
 
         for solution in solutions:
-            targets = options.target.split(',') if options.target else [None]
+            targets = options.target.split(",") if options.target else [None]
             solution.load_deps(root_dir, targets)
 
             deps = solution.list_deps()
@@ -104,10 +103,7 @@ class Deps(Command):
                 for dep in deps:
                     formatter = PartialFormatter()
                     format_string = options.format
-                    print(formatter.format(
-                        format_string,
-                        **dep.attributes
-                    ))
+                    print(formatter.format(format_string, **dep.attributes))
             else:
                 tree_str = solution.get_pretty_dependency_tree()
-                print(f'Dependency tree:\n{tree_str}')
+                print(f"Dependency tree:\n{tree_str}")
