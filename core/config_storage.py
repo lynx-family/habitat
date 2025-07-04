@@ -11,10 +11,12 @@ from core.exceptions import HabitatException
 class ConfigStorage(KeyValueStorage):
 
     def get(self, key, default=None):
-        value = os.environ.get('HABITAT_' + key.upper().replace('.', '_')) or \
-            default or \
-            super(ConfigStorage, self).get(key) or \
-            NotSet
+        value = (
+            os.environ.get("HABITAT_" + key.upper().replace(".", "_"))
+            or default
+            or super(ConfigStorage, self).get(key)
+            or NotSet
+        )
         if value is NotSet:
             raise HabitatException(
                 f'Configuration {key} not found, please run "hab setup {key}" to setup a correct value'
@@ -25,6 +27,11 @@ class ConfigStorage(KeyValueStorage):
         config = self.data
         # read all environment variables that start with "HABITAT_". configurations in ~/.habitat_cache/meta/config
         # will be overridden by environment variables.
-        config.update({k.lower().replace('_', '.').replace('habitat.', ''): v for k, v in os.environ.items() if
-                       k.startswith("HABITAT_")})
+        config.update(
+            {
+                k.lower().replace("_", ".").replace("habitat.", ""): v
+                for k, v in os.environ.items()
+                if k.startswith("HABITAT_")
+            }
+        )
         return iter(config.items())

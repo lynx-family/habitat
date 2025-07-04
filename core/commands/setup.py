@@ -11,21 +11,21 @@ from core.settings import USER_CONFIG_STORAGE_PATH
 
 
 class Setup(Command):
-    name = 'setup'
-    help = 'Setup global configurations for habitat.'
+    name = "setup"
+    help = "Setup global configurations for habitat."
     args = [
         {
-            'flags': ['-l', '--list'],
-            'action': 'store_true',
-            'help': 'List all user configurations',
-            'default': False
+            "flags": ["-l", "--list"],
+            "action": "store_true",
+            "help": "List all user configurations",
+            "default": False,
         },
         {
-            'flags': ['configs'],
-            'help': 'The expression to set the value of certain configuration,'
-                    ' which should be in format of "aaa=bbb,ccc,ddd"',
-            'nargs': '?',
-            'default': None
+            "flags": ["configs"],
+            "help": "The expression to set the value of certain configuration,"
+            ' which should be in format of "aaa=bbb,ccc,ddd"',
+            "nargs": "?",
+            "default": None,
         },
     ]
     configs = []
@@ -34,33 +34,35 @@ class Setup(Command):
         storage = KeyValueStorage(USER_CONFIG_STORAGE_PATH)
 
         if options.list:
-            print('Current configs:')
+            print("Current configs:")
             for key, value in storage.data.items():
                 print(f"  {key}: {value}")
             return
 
         if options.configs:
-            for expr in options.configs.split(','):
-                matches = re.match(r'^(\S+)=(.*)$', expr.strip())
+            for expr in options.configs.split(","):
+                matches = re.match(r"^(\S+)=(.*)$", expr.strip())
                 if not matches:
                     raise HabitatException(f"Invalid expression {expr}")
-                key, value = tuple(s.encode('ascii', 'ignore').decode() for s in matches.groups())
+                key, value = tuple(
+                    s.encode("ascii", "ignore").decode() for s in matches.groups()
+                )
                 storage.set(key, value)
             return
 
         inputs = {}
         for config in self.configs:
-            prompt = config['help']
-            if 'choices' in config:
+            prompt = config["help"]
+            if "choices" in config:
                 prompt += f', choices are: {", ".join(config["choices"])}'
-            if 'default' in config:
+            if "default" in config:
                 prompt += f' (default: {config["default"]})'
-            prompt += ':'
+            prompt += ":"
             print(prompt)
-            inputs[config['name']] = input() or config.get('default')
+            inputs[config["name"]] = input() or config.get("default")
 
-            if 'choices' in config and inputs[config['name']] not in config['choices']:
-                raise HabitatException('Invalid input')
+            if "choices" in config and inputs[config["name"]] not in config["choices"]:
+                raise HabitatException("Invalid input")
 
         for key, value in inputs.items():
             storage.set(key, value)

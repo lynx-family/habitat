@@ -13,52 +13,61 @@ from core.utils import check_call, clean_temp_dirs, get_head_commit_id, git_root
 
 
 def clean_global_cache(_):
-    for subdir in ['git', 'objects']:
+    for subdir in ["git", "objects"]:
         rmtree(os.path.join(GLOBAL_CACHE_DIR, subdir))
 
 
 def clean_deps(root_dir):
     if not root_dir:
-        raise HabitatException('not in a git repository and the root directory is not specified')
+        raise HabitatException(
+            "not in a git repository and the root directory is not specified"
+        )
 
     head_commit_id = get_head_commit_id(cwd=root_dir)
-    tag_name = f'{ENTRIES_CACHE_TAG_PREFIX}_{head_commit_id}'
+    tag_name = f"{ENTRIES_CACHE_TAG_PREFIX}_{head_commit_id}"
     try:
-        check_call(['git', 'tag', '-v', ], cwd=root_dir)
+        check_call(
+            [
+                "git",
+                "tag",
+                "-v",
+            ],
+            cwd=root_dir,
+        )
     except subprocess.SubprocessError:
-        logging.warning('no deps cache found')
+        logging.warning("no deps cache found")
     else:
-        check_call(['git', 'tag', '-d', tag_name], cwd=root_dir)
+        check_call(["git", "tag", "-d", tag_name], cwd=root_dir)
 
 
 class Clean(Command):
-    name = 'clean'
-    help = 'Clean cache file or downloaded dependencies'
+    name = "clean"
+    help = "Clean cache file or downloaded dependencies"
     args = [
         {
-            'flags': ['-a', '--all'],
-            'action': 'store_true',
-            'help': 'Clean all artifacts fetched by habitat, including local cache and global cache',
-            'default': False
+            "flags": ["-a", "--all"],
+            "action": "store_true",
+            "help": "Clean all artifacts fetched by habitat, including local cache and global cache",
+            "default": False,
         },
         {
-            'flags': ['-d', '--deps-cache'],
-            'action': 'store_true',
-            'help': 'Clean local cache',
-            'default': False
+            "flags": ["-d", "--deps-cache"],
+            "action": "store_true",
+            "help": "Clean local cache",
+            "default": False,
         },
         {
-            'flags': ['-c', '--global-cache'],
-            'action': 'store_true',
-            'help': 'Clean local cache',
-            'default': False
+            "flags": ["-c", "--global-cache"],
+            "action": "store_true",
+            "help": "Clean local cache",
+            "default": False,
         },
         {
-            'flags': ['root'],
-            'help': 'Source root of the codebase, default to the root of current git repository if not set',
-            'nargs': '?',
-            'default': None
-        }
+            "flags": ["root"],
+            "help": "Source root of the codebase, default to the root of current git repository if not set",
+            "nargs": "?",
+            "default": None,
+        },
     ]
 
     def __init__(self):

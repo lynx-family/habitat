@@ -10,5 +10,5 @@ from core.fetchers.fetcher import Fetcher
 class DummyFetcher(Fetcher):
 
     async def fetch(self, *args, **kwargs):
-        logging.warning(f'unsupported dependency config {self.component}, skip')
+        logging.warning(f"unsupported dependency config {self.component}, skip")
         return []
