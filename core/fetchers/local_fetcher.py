@@ -6,10 +6,16 @@ import logging
 import os.path
 import platform
 import shutil
+import stat
 
 from core.exceptions import HabitatException
 from core.fetchers.fetcher import Fetcher
 from core.utils import create_symlink
+
+
+def windows_copy(src, dst, *, follow_symlinks=True):
+    os.chmod(dst, stat.S_IWRITE)
+    return shutil.copy2
 
 
 class LocalFetcher(Fetcher):
@@ -43,7 +49,11 @@ class LocalFetcher(Fetcher):
                     logging.debug(f"{dst} is an existing symlink, remove it.")
                     os.remove(dst)
                 logging.debug(f"Copying {src} to {dst} instead of creating symlink.")
-                shutil.copytree(src, dst, symlinks=True, dirs_exist_ok=True)
+
+                copy_function = shutil.copy2
+                if platform.system() == 'Windows':
+                    copy_function = windows_copy
+                shutil.copytree(src, dst, symlinks=True, dirs_exist_ok=True, copy_function=copy_function)
                 continue
 
             # if dst is link, delete it, as it might be an old link
