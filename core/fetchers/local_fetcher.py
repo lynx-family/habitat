@@ -14,7 +14,8 @@ from core.utils import create_symlink
 
 
 def windows_copy(src, dst, *, follow_symlinks=True):
-    os.chmod(dst, stat.S_IWRITE)
+    if os.path.exists(dst):
+        os.chmod(dst, stat.S_IWRITE)
     return shutil.copy2
 
 
