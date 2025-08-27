@@ -50,7 +50,6 @@ class ActionDependency(Component):
 
         try:
             for command in commands:
-                logging.info(f"Run command {command} in path {cwd}")
                 await async_check_output(
                     command,
                     shell=isinstance(command, str),
@@ -58,11 +57,11 @@ class ActionDependency(Component):
                     cwd=cwd,
                     env={**os.environ.copy(), **env},
                 )
+                logging.info(f"Run command {command} in path {cwd}")
             self.on_fetched(root_dir, options)
         except subprocess.CalledProcessError as e:
-            logging.error(
-                f"a command has failed recently, original output:\n{e.output.decode()}"
-            )
+            logging.error(f"command {command} fails, original output:")
+            logging.error(f'  --> {e.output.decode().strip()}')
             raise HabitatException(
                 f"failed to run action {commands} in {self.target_dir}"
             ) from e
