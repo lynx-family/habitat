@@ -14,6 +14,7 @@ class HttpDependency(Component):
         "sha256": {"type": str, "optional": True},
         "decompress": {"type": bool, "optional": True, "default": True},
         "paths": {"type": list, "optional": True, "default": []},
+        "http_headers": {"type": dict, "optional": True, "default": {}},
     }
     source_attributes = ["url"]
     source_stamp_attributes = ["url"]
