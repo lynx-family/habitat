@@ -119,6 +119,7 @@ def apply_mapping(dep, mappings: dict):
         original_attr = getattr(dep, attr)
         if original_attr in mp:
             dep.set_attr(attr, mp[original_attr], override=True)
+            dep.set_attr(f"original_{attr}", original_attr)
             logging.info(
                 f"replace ({dep.name})'s [{attr}] {original_attr} with {mp[original_attr]}"
             )

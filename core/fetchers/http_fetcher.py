@@ -133,7 +133,7 @@ class HttpFetcher(Fetcher, CacheMixin):
 
         # retrieve file from cache, the key is the url of the dependency.
         skip_download = False
-        cache = self.get_from_cache(convert_url_to_cache_path(self.url))
+        cache = self.get_from_cache(convert_url_to_cache_path(component.original_url))
         if cache:
             shutil.copy2(cache, file_path)
             skip_download = True
@@ -187,7 +187,7 @@ class HttpFetcher(Fetcher, CacheMixin):
             )
 
         # store file to cache, the key is the url of the dependency.
-        self.put_to_cache(convert_url_to_cache_path(self.url), path=file_path)
+        self.put_to_cache(convert_url_to_cache_path(component.original_url), path=file_path)
 
         paths = getattr(component, "paths", [])
         if getattr(component, "decompress", True):
