@@ -169,7 +169,7 @@ class GitFetcher(Fetcher):
 
             # if a repository was fetched before git lfs install,
             # files tracked by lfs will be replaced by file pointer
-            if getattr(self.component, "enable_lfs", False):
+            if getattr(self.component, "enable_lfs", None):
                 try:
                     await run_git_command(
                         "git lfs install",
@@ -318,9 +318,15 @@ class GitFetcher(Fetcher):
                 cmd = f"git --work-tree={target_dir} checkout FETCH_HEAD -- ."
             else:
                 cmd = f"git checkout {checkout_args}"
+
+            # If specify enable_lfs to false explicitly, set an extra env when running checkout command
+            checkout_env = None
+            if getattr(self.component, "enable_lfs", None) is False:
+                checkout_env = {"GIT_LFS_SKIP_SMUDGE": "1"}
+
             try:
                 await run_git_command(
-                    cmd, shell=True, cwd=source_dir, stderr=subprocess.STDOUT
+                    cmd, shell=True, cwd=source_dir, stderr=subprocess.STDOUT, env=checkout_env
                 )
             except subprocess.CalledProcessError:
                 logging.warning(
@@ -331,7 +337,7 @@ class GitFetcher(Fetcher):
                 rmtree(source_dir)
                 await self.fetch(root_dir, options, *args, **kwargs)
 
-            if getattr(self.component, "enable_lfs", False):
+            if getattr(self.component, "enable_lfs", None):
                 try:
                     await run_git_command(
                         "git lfs pull",
