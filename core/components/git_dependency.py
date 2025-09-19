@@ -26,7 +26,7 @@ class GitDependency(Component):
         "enable_lfs": {
             "type": bool,
             "optional": True,
-            "default": False,
+            "default": None,
         },
         "patches": {
             "type": Union[str, list],
