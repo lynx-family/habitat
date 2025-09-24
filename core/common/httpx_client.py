@@ -8,6 +8,7 @@ import httpx
 
 from core.common.http_status import client_error, server_error
 from core.exceptions import HabitatException
+from core.settings import SSL_VERIFY
 
 MAX_CONCURRENCY = int(os.environ.get("HABITAT_CONCURRENCY", 50))
 
@@ -15,7 +16,10 @@ MAX_CONCURRENCY = int(os.environ.get("HABITAT_CONCURRENCY", 50))
 class HttpxClient:
     def __init__(self, base_url=None, headers=None):
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
-        self._client = httpx.AsyncClient(follow_redirects=True)
+
+        if not SSL_VERIFY:
+            logging.warning("disable ssl/tls verify for http client")
+        self._client = httpx.AsyncClient(follow_redirects=True, verify=SSL_VERIFY)
         parsed_url = urlparse(base_url)
         self._base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
         self._headers = headers or {}

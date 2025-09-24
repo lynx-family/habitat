@@ -21,3 +21,6 @@ CHUNKED_TRANSMISSION = os.environ.get('HABITAT_CHUNKED_TRANSMISSION', 'true').lo
 ENTRIES_CACHE_TAG_PREFIX = 'habitat_entries'
 
 MAX_DEPENDENCY_WAIT_TIME = int(os.environ.get('HABITAT_MAX_DEPENDENCY_WAIT_TIME', 1200))
+
+# whether to enable ssl/tls verify for http client.
+SSL_VERIFY = os.environ.get("HABITAT_SSL_VERIFY", "1") == "1"

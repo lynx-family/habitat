@@ -19,7 +19,7 @@ DEV_REQUIRES = [
     "flake8>=3.5.0,<4.0.0",
     "tox>=3.0.0,<4.0.0",
     "isort>=4.0.0,<5.0.0",
-    "pytest>=4.0.0,<5.0.0",
+    "pytest>=6.0.0,<7.0.0",
     "pytest_httpserver==1.0.12",
     "pex==2.20.2" if not platform.system() == "Windows" else "pyinstaller==6.12.0",
 ] + REQUIRES
