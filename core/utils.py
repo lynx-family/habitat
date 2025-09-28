@@ -560,11 +560,43 @@ def extract_zipfile(src: str, dst: str, paths: list):
                 os.chmod(file_path, mode)
 
 
+def get_tar_impl():
+    exe = shutil.which("tar")
+    if not exe:
+        return None, None
+    try:
+        out = subprocess.check_output([exe, "--version"], text=True, stderr=subprocess.STDOUT)
+    except Exception:
+        try:
+            out = subprocess.check_output([exe, "--help"], text=True, stderr=subprocess.STDOUT)
+        except Exception:
+            return exe, "unknown"
+    if "GNU tar" in out:
+        return exe, "gnu"
+    if "bsdtar" in out or "libarchive" in out:
+        return exe, "bsd"
+    return exe, "unknown"
+
+
+def to_posix_path(p):
+    s = Path(p).as_posix()  # C:\x\y -> C:/x/y
+    if len(s) >= 3 and s[1] == ":" and s[2] == "/":
+        return f"/{s[0].lower()}{s[2:]}"  # C:/Users -> /c/Users
+    return s
+
+
 def extract_tarfile(src: str, dst: str, paths: list):
     if not os.path.exists(dst):
         os.makedirs(dst)
-    tar = "tar.exe" if platform.system().lower() == "windows" else "tar"
-    subprocess.run(f"{tar} -xpf {src} -C {dst} {' '.join(paths)}", shell=True)
+    tar, impl = get_tar_impl()
+    if tar is None:
+        raise HabitatException("Could not find 'tar' executable required to extract tar archives.")
+    # GNU tar only recognizes windows paths in format of /c/...
+    if impl == "gnu":
+        src = to_posix_path(src)
+        dst = to_posix_path(dst)
+        paths = [to_posix_path(p) for p in paths]
+    subprocess.run([tar, "-xpf", src, "-C", dst] + paths)
 
 
 UNPACK_FORMAT_EXTENSIONS = {
