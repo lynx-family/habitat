@@ -110,7 +110,7 @@ class HttpFetcher(Fetcher, CacheMixin):
     def download_client(self) -> HttpxClient:
         if not self._download_client:
             self._update_download_url(self.url)
-            self._download_client = HttpxClient(self.base_url, self.component.http_headers)
+            self._download_client = HttpxClient(self.base_url, getattr(self.component, "http_headers", {}))
         return self._download_client
 
     async def download(self, item: str, root_dir: str, override_exist: bool):
