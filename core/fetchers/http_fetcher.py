@@ -12,7 +12,7 @@ import shutil
 import stat
 import sys
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from core.common.cache_mixin import CacheMixin
 from core.common.http_status import client_error, server_error, success
@@ -105,6 +105,7 @@ class HttpFetcher(Fetcher, CacheMixin):
         self.base_url = None
         self.path_url = None
         self._download_client = None
+        self.query_params = None
 
     @property
     def download_client(self) -> HttpxClient:
@@ -223,6 +224,7 @@ class HttpFetcher(Fetcher, CacheMixin):
                     extra_headers={"Range": f"bytes={start}-{end}"},
                     retry=2,
                     timeout=600,
+                    params=self.query_params,
                 )
             if callback:
                 callback()
@@ -238,7 +240,7 @@ class HttpFetcher(Fetcher, CacheMixin):
         if client can not get content-length field by sending a HEAD request,
         just download the file straight away without setting up a progress bar.
         """
-        resp, _, data = await self.download_client.async_request("GET", url)
+        resp, _, data = await self.download_client.async_request("GET", url, params=self.query_params)
         if server_error(resp.status_code) or client_error(resp.status_code):
             raise HabitatException(
                 f"got a status code {resp.status_code} when downloading {url}"
@@ -252,7 +254,7 @@ class HttpFetcher(Fetcher, CacheMixin):
     async def _send_head_request(self, item: str):
         # check if server supports Content-Length and Accept-Ranges
         resp, headers, _ = await self.download_client.async_request(
-            "HEAD", self.path_url, suppress=True
+            "HEAD", self.path_url, suppress=True, params=self.query_params
         )
         if not success(resp.status_code):
             return {}
@@ -263,6 +265,7 @@ class HttpFetcher(Fetcher, CacheMixin):
         self.base_url = "".join([r.scheme, "://", r.netloc])
         self.path_url = r.path
         self.url = url
+        self.query_params = parse_qs(r.query) if r.query else None
         # To be adapted with legacy test.
         self.component.url = url
 
