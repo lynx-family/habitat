@@ -26,7 +26,7 @@ class HttpxClient:
         asyncio_atexit.register(self._client.aclose)
 
     async def async_request(
-        self, method: str, path: str, timeout=20, extra_headers=None, **kwargs
+        self, method: str, path: str, timeout=20, extra_headers=None, params=None, **kwargs
     ):
         suppress = kwargs.get("suppress", False)
         url = f'{self._base_url}{"" if path.startswith("/") else "/"}{path}'
@@ -37,6 +37,7 @@ class HttpxClient:
                 url,
                 headers={**self._headers, **(extra_headers or {})},
                 timeout=timeout,
+                params=params
             )
             if server_error(resp.status_code) or client_error(resp.status_code):
                 if not suppress:
