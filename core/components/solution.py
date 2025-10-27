@@ -259,7 +259,7 @@ class Solution(DependencyGroup):
 
         deps = {}
         # if target is specified and --target-only is set, skip base deps.
-        skip_base_deps = target_only and not targets == [None]
+        skip_base_deps = target_only and not targets == [None] and self.parent is None
         for target in targets:
             deps = (
                 merge_deps(deps, eval_deps(deps_file_path, target, root_dir))
