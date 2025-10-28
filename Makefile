@@ -4,7 +4,7 @@ all: install_dev isort isort_check lint test
 check: install_dev isort_check lint test clean
 
 install_dev:
-	@pip install -e .[dev] >/dev/null 2>&1
+	@pip install -e .[dev] 2>&1
 
 isort:
 	@isort -s venv -s venv_py -s .tox -s tools -rc --atomic .
