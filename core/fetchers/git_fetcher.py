@@ -15,8 +15,7 @@ from core.fetchers.fetcher import Fetcher
 from core.settings import DEBUG
 from core.trace import get_global_tracer
 from core.utils import (async_check_output, convert_git_url_to_http, create_temp_dir, get_full_commit_id,
-                        is_bare_git_repo, is_git_repo_valid, is_git_root, is_git_user_set, move, rmtree,
-                        set_git_alternates)
+                        is_bare_git_repo, is_git_repo_valid, is_git_root, is_git_user_set, move, rmtree)
 
 
 async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=False):
@@ -41,7 +40,7 @@ async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=Fa
     elif fetch_all:
         need_fetch = True
     else:
-        cmd = f"git rev-parse {ref_spec.rsplit()[-1]}"
+        cmd = f"git cat-file -t {ref_spec.rsplit()[-1]}"
         try:
             await run_git_command(
                 cmd,
@@ -57,9 +56,17 @@ async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=Fa
         logging.debug(f"update git cache in {repo_cache_dir}")
         ref_spec = "+refs/heads/*:refs/remotes/origin/*"
         cmd = f"git fetch --force --progress --update-head-ok -- {url} {ref_spec}"
-        await run_git_command(
-            cmd, shell=True, cwd=repo_cache_dir, stderr=subprocess.STDOUT
-        )
+        try:
+            await run_git_command(
+                cmd, shell=True, cwd=repo_cache_dir, stderr=subprocess.STDOUT
+            )
+        except subprocess.CalledProcessError:
+            logging.warning(f"not a valid cache, removing {repo_cache_dir}")
+            # TODO: windows permission
+            rmtree(repo_cache_dir, ignore_errors=True)
+            await run_git_command(
+                cmd, shell=True, cwd=repo_cache_dir, stderr=subprocess.STDOUT
+            )
     return repo_cache_dir
 
 
@@ -297,13 +304,10 @@ class GitFetcher(Fetcher):
                 global_cache_dir = os.path.realpath(
                     os.path.expandvars(global_cache_dir)
                 )
-                reference_objects_dir = os.path.join(
-                    await fetch_in_cache_if_needed(
-                        url, ref_spec, global_cache_dir, fetch_all=fetch_all
-                    ),
-                    "objects",
+                repo_cache_dir = await fetch_in_cache_if_needed(
+                    url, ref_spec, global_cache_dir, fetch_all=fetch_all
                 )
-                await set_git_alternates(source_dir, reference_objects_dir)
+                url = repo_cache_dir
 
             cmd = f"git fetch {depth_arg} --force --progress --update-head-ok -- {url} {ref_spec}"
             await run_git_command(
