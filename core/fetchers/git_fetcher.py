@@ -54,7 +54,6 @@ async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=Fa
 
     if need_fetch:
         logging.debug(f"update git cache in {repo_cache_dir}")
-        ref_spec = "+refs/heads/*:refs/remotes/origin/*"
         cmd = f"git fetch --force --progress --update-head-ok -- {url} {ref_spec}"
         try:
             await run_git_command(
