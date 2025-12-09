@@ -323,9 +323,9 @@ class GitFetcher(Fetcher):
                 cmd = f"git checkout {checkout_args}"
 
             # If specify enable_lfs to false explicitly, set an extra env when running checkout command
-            checkout_env = None
+            checkout_env = os.environ.copy()
             if getattr(self.component, "enable_lfs", None) is False:
-                checkout_env = {"GIT_LFS_SKIP_SMUDGE": "1"}
+                checkout_env["GIT_LFS_SKIP_SMUDGE"] = "1"
 
             try:
                 await run_git_command(
