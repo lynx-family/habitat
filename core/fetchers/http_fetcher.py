@@ -57,12 +57,28 @@ def _rmtree(target_dir):
         shutil.rmtree(target_dir, onexc=on_fs_error)
 
 
+def chmod_recursive(path, mode):
+    """Recursively change permissions for all files and directories under path"""
+    if os.path.isfile(path):
+        os.chmod(path, mode)
+    else:
+        # First change the directory itself
+        os.chmod(path, mode)
+        # Then traverse and change all contents
+        for root, dirs, files in os.walk(path):
+            for dir_name in dirs:
+                dir_path = os.path.join(root, dir_name)
+                os.chmod(dir_path, mode)
+            for file_name in files:
+                file_path = os.path.join(root, file_name)
+                os.chmod(file_path, mode)
+
 def on_fs_error(func, path, _):
     if not os.path.exists(str(path)):
         return
 
     if platform.system() == "Windows":
-        os.chmod(path, stat.S_IWRITE)
+        chmod_recursive(path, stat.S_IWRITE)
         func(path)
 
 
@@ -76,8 +92,8 @@ def move_to_target_dir(temp_dir, target_dir, is_single_file):
         path = os.path.join(temp_dir, sub_dirs[0])
 
     if platform.system() == "Windows" and os.path.exists(str(target_dir)):
-        os.chmod(target_dir, stat.S_IWRITE)
-        os.chmod(path, stat.S_IWRITE)
+        chmod_recursive(target_dir, stat.S_IWRITE)
+        chmod_recursive(path, stat.S_IWRITE)
         _rmtree(target_dir)
     shutil.move(path, target_dir)
 
