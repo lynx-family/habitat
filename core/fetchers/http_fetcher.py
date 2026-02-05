@@ -73,6 +73,7 @@ def chmod_recursive(path, mode):
                 file_path = os.path.join(root, file_name)
                 os.chmod(file_path, mode)
 
+
 def on_fs_error(func, path, _):
     if not os.path.exists(str(path)):
         return
