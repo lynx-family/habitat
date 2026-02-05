@@ -245,7 +245,10 @@ class GitFetcher(Fetcher):
                 )
                 checkout_args = "FETCH_HEAD"
             elif hasattr(self.component, "branch"):
+                # the refspec below is for fetching ref from remote to `source_dir`,
+                # it should be like "+refs/heads/main:refs/remotes/origin/main" (<remote ref>:<local repo ref>)
                 ref_spec = f"+refs/heads/{self.component.branch}:refs/remotes/{remote}/{self.component.branch}"
+                # checkout refs in `source_dir`, it should be like "refs/remotes/origin/main"
                 checkout_args = f"-B {self.component.branch} refs/remotes/{remote}/{self.component.branch}"
             elif hasattr(self.component, "tag"):
                 ref_spec = (
@@ -296,6 +299,9 @@ class GitFetcher(Fetcher):
             else:
                 depth_arg = "--depth=1 --no-tags" if options.no_history else ""
 
+            # keep the original refspec if --disable-cache was set
+            checkout_ref_spec = ref_spec
+
             if not options.disable_cache:
                 global_cache_dir = os.path.expanduser(
                     os.path.join(options.cache_dir, "git")
@@ -303,12 +309,23 @@ class GitFetcher(Fetcher):
                 global_cache_dir = os.path.realpath(
                     os.path.expandvars(global_cache_dir)
                 )
+                # the local repo for cache keeps refs like "refs/remotes/origin/main" instead of "refs/heads/main"
                 repo_cache_dir = await fetch_in_cache_if_needed(
                     url, ref_spec, global_cache_dir, fetch_all=fetch_all
                 )
                 url = repo_cache_dir
+                # if a git dependency is fetched by branch or tag
+                if ":" in ref_spec:
+                    # in this case, the local cache repo was used as a remote.
+                    # the (<remote ref>:<local repo ref>) refspec format should be adapted with the cache process.
+                    # 1. the "<remote ref>" should be like "refs/remotes/origin/main" since the local cache repo will
+                    #  be used as "remote",
+                    # 2. the "<local repo ref>" should be like "refs/remotes/origin/main" as well. because the checkout
+                    #  args for branch is set to "-B <branch> refs/remotes/origin/main".
+                    _, cached_ref = ref_spec.split(":", 1)
+                    checkout_ref_spec = f"{cached_ref}:{cached_ref.lstrip('+')}"
 
-            cmd = f"git fetch {depth_arg} --force --progress --update-head-ok -- {url} {ref_spec}"
+            cmd = f"git fetch {depth_arg} --force --progress --update-head-ok -- {url} {checkout_ref_spec}"
             await run_git_command(
                 cmd, shell=True, cwd=source_dir, retry=1, stderr=subprocess.STDOUT
             )
