@@ -24,6 +24,10 @@ class ActionDependency(Component):
             "validator": lambda val, config: isinstance(val, Callable) or val is None,
             "default": None,
         },
+        "output": {
+            "validator": lambda val, config: isinstance(val, bool),
+            "default": False,
+        },
         "cwd": {"optional": True},
     }
     source_attributes = []
@@ -49,8 +53,10 @@ class ActionDependency(Component):
             os.chdir(saved_dir)
 
         try:
+            action_outputs = []
+
             for command in commands:
-                await async_check_output(
+                output = await async_check_output(
                     command,
                     shell=isinstance(command, str),
                     stderr=subprocess.STDOUT,
@@ -58,6 +64,16 @@ class ActionDependency(Component):
                     env={**os.environ.copy(), **env},
                 )
                 logging.info(f"Run command {command} in path {cwd}")
+                if self.output:
+                    outputs = output.decode().splitlines()
+                    action_outputs.extend(outputs)
+
+            if self.output:
+                logging.info(f"┌──── {self.name}")
+                for output in action_outputs:
+                    logging.info(f"│ {output}")
+                logging.info("└────")
+
             self.on_fetched(root_dir, options)
         except subprocess.CalledProcessError as e:
             logging.error(f"command {command} fails, original output:")
