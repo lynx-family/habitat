@@ -11,7 +11,11 @@ COMPATIBLE_CHECK = os.environ.get("HABITAT_COMPATIBLE_CHECK", None) != 'false'
 DEFAULT_CONFIG_FILE_NAME = '.habitat'
 DEFAULT_DEPS_CACHE_FILE_NAME = '.habitat_entries'
 
-GLOBAL_CACHE_DIR = os.path.join(os.environ.get("HOME", tempfile.gettempdir()), '.habitat_cache')
+CUSTOM_GLOBAL_CACHE_DIR = os.environ.get("HABITAT_CACHE_DIR", None)
+if CUSTOM_GLOBAL_CACHE_DIR is None:
+    GLOBAL_CACHE_DIR = os.path.join(os.environ.get("HOME", tempfile.gettempdir()), '.habitat_cache')
+else:
+    GLOBAL_CACHE_DIR = CUSTOM_GLOBAL_CACHE_DIR
 USER_CONFIG_STORAGE_PATH = os.path.join(GLOBAL_CACHE_DIR, 'meta', 'config')
 
 CACHE_DIR_PREFIX = 'TEMP-HABITAT-'
