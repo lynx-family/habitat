@@ -11,6 +11,8 @@ from core.exceptions import HabitatException
 from core.settings import SSL_VERIFY
 
 MAX_CONCURRENCY = int(os.environ.get("HABITAT_CONCURRENCY", 50))
+DEFAULT_RETRIES = 3
+DEFAULT_BACKOFF_BASE = 1
 
 
 class HttpxClient:
@@ -29,22 +31,53 @@ class HttpxClient:
         self, method: str, path: str, timeout=20, extra_headers=None, params=None, **kwargs
     ):
         suppress = kwargs.get("suppress", False)
+        retries = kwargs.get("retry", DEFAULT_RETRIES)
         url = f'{self._base_url}{"" if path.startswith("/") else "/"}{path}'
         logging.debug(f"{self._base_url=}, {url=}")
         async with self._semaphore:
-            resp = await self._client.request(
-                method,
-                url,
-                headers={**self._headers, **(extra_headers or {})},
-                timeout=timeout,
-                params=params
-            )
-            if server_error(resp.status_code) or client_error(resp.status_code):
-                if not suppress:
-                    raise HabitatException(
-                        f"request got a status code {resp.status_code}"
+            last_exception = None
+            for attempt in range(retries + 1):
+                try:
+                    resp = await self._client.request(
+                        method,
+                        url,
+                        headers={**self._headers, **(extra_headers or {})},
+                        timeout=timeout,
+                        params=params
                     )
-                else:
-                    return resp, resp.headers, None
-
-            return resp, resp.headers, resp.content
+                    if server_error(resp.status_code):
+                        if attempt < retries:
+                            delay = DEFAULT_BACKOFF_BASE * (2 ** attempt)
+                            logging.warning(
+                                f"request to {url} got status {resp.status_code}, "
+                                f"retrying ({attempt + 1}/{retries}) after {delay}s"
+                            )
+                            await asyncio.sleep(delay)
+                            continue
+                        if not suppress:
+                            raise HabitatException(
+                                f"request got a status code {resp.status_code}"
+                            )
+                        else:
+                            return resp, resp.headers, None
+                    if client_error(resp.status_code):
+                        if not suppress:
+                            raise HabitatException(
+                                f"request got a status code {resp.status_code}"
+                            )
+                        else:
+                            return resp, resp.headers, None
+                    return resp, resp.headers, resp.content
+                except HabitatException:
+                    raise
+                except Exception as e:
+                    last_exception = e
+                    if attempt < retries:
+                        delay = DEFAULT_BACKOFF_BASE * (2 ** attempt)
+                        logging.warning(
+                            f"request to {url} failed with {e}, "
+                            f"retrying ({attempt + 1}/{retries}) after {delay}s"
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        raise
