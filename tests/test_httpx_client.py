@@ -1,10 +1,9 @@
 import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-
-from core.common.httpx_client import HttpxClient, DEFAULT_RETRIES, DEFAULT_BACKOFF_BASE
+from core.common.httpx_client import DEFAULT_BACKOFF_BASE, DEFAULT_RETRIES, HttpxClient
 from core.exceptions import HabitatException
 
 
