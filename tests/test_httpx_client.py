@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+
 from core.common.httpx_client import DEFAULT_BACKOFF_BASE, DEFAULT_RETRIES, HttpxClient
 from core.exceptions import HabitatException
 
