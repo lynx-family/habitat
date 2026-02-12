@@ -35,7 +35,6 @@ class HttpxClient:
         url = f'{self._base_url}{"" if path.startswith("/") else "/"}{path}'
         logging.debug(f"{self._base_url=}, {url=}")
         async with self._semaphore:
-            last_exception = None
             for attempt in range(retries + 1):
                 try:
                     resp = await self._client.request(
@@ -71,7 +70,6 @@ class HttpxClient:
                 except HabitatException:
                     raise
                 except Exception as e:
-                    last_exception = e
                     if attempt < retries:
                         delay = DEFAULT_BACKOFF_BASE * (2 ** attempt)
                         logging.warning(
