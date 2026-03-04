@@ -11,6 +11,7 @@ import platform
 import shutil
 import stat
 import sys
+import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -19,6 +20,7 @@ from core.common.http_status import client_error, server_error, success
 from core.common.httpx_client import HttpxClient
 from core.exceptions import HabitatException
 from core.fetchers.fetcher import Fetcher
+from core.observe import observer
 from core.settings import DEBUG
 from core.utils import ProgressBar, async_check_output, create_temp_dir, extract_archive
 
@@ -153,6 +155,8 @@ class HttpFetcher(Fetcher, CacheMixin):
         skip_download = False
         url_cache_key = getattr(component, "original_url", self.url)
         cache = self.get_from_cache(convert_url_to_cache_path(url_cache_key))
+        if self.cache_dir is not None:
+            observer.record_cache_access("http", bool(cache))
         if cache:
             shutil.copy2(cache, file_path)
             skip_download = True
@@ -222,6 +226,7 @@ class HttpFetcher(Fetcher, CacheMixin):
 
     async def _download_part(self, item: str, start, end, callback=None):
         logging.debug(f"download part [{start}, {end}] of {item}")
+        t0_ns = time.perf_counter_ns()
         try:
             # TODO(zouzhecheng): delete this when http client refactored.
             if (
@@ -245,6 +250,20 @@ class HttpFetcher(Fetcher, CacheMixin):
                 )
             if callback:
                 callback()
+
+            duration_ms = int((time.perf_counter_ns() - t0_ns) / 1_000_000)
+
+            observer.record_download_task(
+                duration_ms,
+                {
+                    "durationMs": duration_ms,
+                    "kind": "http",
+                    "url": f"{self.base_url}{self.path_url}" if self.base_url and self.path_url else None,
+                    "range": {"start": int(start), "end": int(end)},
+                    "bytes": int(len(data) if data is not None else 0),
+                }
+            )
+
             logging.debug(f"part [{start}, {end}] of {item} is downloaded")
             return data, (start, end)
         except Exception as e:
@@ -257,6 +276,7 @@ class HttpFetcher(Fetcher, CacheMixin):
         if client can not get content-length field by sending a HEAD request,
         just download the file straight away without setting up a progress bar.
         """
+        t0_ns = time.perf_counter_ns()
         resp, _, data = await self.download_client.async_request("GET", url, params=self.query_params)
         if server_error(resp.status_code) or client_error(resp.status_code):
             raise HabitatException(
@@ -267,6 +287,18 @@ class HttpFetcher(Fetcher, CacheMixin):
 
         with open(target_dir, "wb") as f:
             f.write(data)
+
+        duration_ms = int((time.perf_counter_ns() - t0_ns) / 1_000_000)
+        observer.record_download_task(
+            duration_ms,
+            {
+                "durationMs": duration_ms,
+                "kind": "http",
+                "url": f"{self.base_url}{url}" if self.base_url and url else None,
+                "range": None,
+                "bytes": int(len(data) if data is not None else 0),
+            }
+        )
 
     async def _send_head_request(self, item: str):
         # check if server supports Content-Length and Accept-Ranges

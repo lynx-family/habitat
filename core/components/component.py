@@ -3,12 +3,14 @@
 # LICENSE file in the root directory of this source tree.
 
 import logging
+import time
 from abc import ABC
 from pathlib import Path
 from typing import Any
 
 from core.exceptions import HabitatException
 from core.fetchers.dummy_fetcher import DummyFetcher
+from core.observe import observer
 from core.trace import get_global_tracer
 
 
@@ -168,26 +170,34 @@ class Component(ABC):
             )
 
         logging.info(f"Sync dependency {self.name}")
+        dep_name = getattr(self, "name", "unknown")
+        dep_type = getattr(self, "type", "unknown")
+        span_start_ns = time.perf_counter_ns()
+
         try:
-            if options.force or not self.up_to_date():
-                if tracer:
-                    tracer.async_instant(
-                        async_id,
-                        f"fetch_{self.name}_start_fetching",
-                        category="component_fetch",
+            ctx = observer.dependency_context(dep_name, dep_type)
+            needs_fetch = bool(options.force or not self.up_to_date())
+            with ctx:
+                if needs_fetch:
+                    if tracer:
+                        tracer.async_instant(
+                            async_id,
+                            f"fetch_{self.name}_start_fetching",
+                            category="component_fetch",
+                        )
+                    self.fetched_paths = await self.fetcher.fetch(root_dir, options)
+                else:
+                    logging.debug(
+                        f"local source stamp cache cache of {self.name} is synchronized with source stamp, "
+                        f"skip fetching"
                     )
-                self.fetched_paths = await self.fetcher.fetch(root_dir, options)
-            else:
-                logging.debug(
-                    f"local source stamp cache cache of {self.name} is synchronized with source stamp, "
-                    f"skip fetching"
-                )
-                if tracer:
-                    tracer.async_instant(
-                        async_id,
-                        f"fetch_{self.name}_skip_cached",
-                        category="component_fetch",
-                    )
+                    if tracer:
+                        tracer.async_instant(
+                            async_id,
+                            f"fetch_{self.name}_skip_cached",
+                            category="component_fetch",
+                        )
+
             self.on_fetched(root_dir, options)
         except Exception as e:
             if tracer and async_id:
@@ -201,6 +211,12 @@ class Component(ABC):
                 f"failed to fetch dependency {self.source_stamp} to {self.target_dir}"
             ) from e
         finally:
+            try:
+                duration_ms = int((time.perf_counter_ns() - span_start_ns) / 1_000_000)
+                observer.record_dependency_span(duration_ms, dep_name=dep_name)
+            except Exception:
+                pass
+
             if tracer and async_id:
                 tracer.async_end(async_id)
             if hasattr(self, "parent") and self.parent:
