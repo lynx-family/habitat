@@ -8,14 +8,23 @@ import os
 import re
 import subprocess
 import sys
+import time
 from glob import glob
+from typing import NamedTuple, Optional
 
+from core.observe import observer
 from core.exceptions import HabitatException
 from core.fetchers.fetcher import Fetcher
 from core.settings import DEBUG
 from core.trace import get_global_tracer
 from core.utils import (async_check_output, convert_git_url_to_http, create_temp_dir, get_full_commit_id,
                         is_bare_git_repo, is_git_repo_valid, is_git_root, is_git_user_set, move, rmtree)
+
+
+class GitCacheInfo(NamedTuple):
+    used: bool
+    hit: Optional[bool]
+    repo_cache_dir: Optional[str]
 
 
 async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=False):
@@ -26,8 +35,10 @@ async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=Fa
     if not os.path.exists(repo_cache_dir):
         os.makedirs(repo_cache_dir)
 
+    had_cache_repo = is_bare_git_repo(repo_cache_dir)
+
     need_fetch = False
-    if not is_bare_git_repo(repo_cache_dir):
+    if not had_cache_repo:
         cmd = f"git init --bare {repo_cache_dir}"
         await run_git_command(
             cmd, shell=True, cwd=global_cache_dir, stderr=subprocess.STDOUT
@@ -52,6 +63,8 @@ async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=Fa
         except subprocess.CalledProcessError:
             need_fetch = True
 
+    hit = bool(had_cache_repo and (not need_fetch))
+
     if need_fetch:
         logging.debug(f"update git cache in {repo_cache_dir}")
         cmd = f"git fetch --force --progress --update-head-ok -- {url} {ref_spec}"
@@ -66,7 +79,7 @@ async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=Fa
             await run_git_command(
                 cmd, shell=True, cwd=repo_cache_dir, stderr=subprocess.STDOUT
             )
-    return repo_cache_dir
+    return GitCacheInfo(used=True, hit=hit, repo_cache_dir=repo_cache_dir)
 
 
 async def run_git_command(cmd: str, *args, **kwargs):
@@ -301,7 +314,9 @@ class GitFetcher(Fetcher):
 
             # keep the original refspec if --disable-cache was set
             checkout_ref_spec = ref_spec
+            cache_info = GitCacheInfo(used=False, hit=None, repo_cache_dir=None)
 
+            t0_ns = time.perf_counter_ns()
             if not options.disable_cache:
                 global_cache_dir = os.path.expanduser(
                     os.path.join(options.cache_dir, "git")
@@ -310,10 +325,11 @@ class GitFetcher(Fetcher):
                     os.path.expandvars(global_cache_dir)
                 )
                 # the local repo for cache keeps refs like "refs/remotes/origin/main" instead of "refs/heads/main"
-                repo_cache_dir = await fetch_in_cache_if_needed(
+                cache_info = await fetch_in_cache_if_needed(
                     url, ref_spec, global_cache_dir, fetch_all=fetch_all
                 )
-                url = repo_cache_dir
+                observer.record_cache_access("git", hit=bool(cache_info.hit))
+                url = cache_info.repo_cache_dir
                 # if a git dependency is fetched by branch or tag
                 if ":" in ref_spec:
                     # in this case, the local cache repo was used as a remote.
@@ -328,6 +344,19 @@ class GitFetcher(Fetcher):
             cmd = f"git fetch {depth_arg} --force --progress --update-head-ok -- {url} {checkout_ref_spec}"
             await run_git_command(
                 cmd, shell=True, cwd=source_dir, retry=1, stderr=subprocess.STDOUT
+            )
+            duration_ms = int((time.perf_counter_ns() - t0_ns) / 1_000_000)
+            no_url_cmd = (
+                f"git fetch {depth_arg} --force --progress --update-head-ok -- <url> {checkout_ref_spec}"
+            )
+            observer.record_download_task(
+                duration_ms,
+                {
+                    "durationMs": duration_ms,
+                    "kind": "git",
+                    "url": self.component.url,
+                    "command": no_url_cmd
+                }
             )
 
             if options.raw and not os.path.exists(target_dir):

@@ -4,12 +4,50 @@
 
 import logging
 import os
+import shlex
 import subprocess
+import time
+from contextlib import nullcontext
 from typing import Callable, Iterable
 
 from core.components.component import Component
 from core.exceptions import HabitatException
+from core.observe import observer
 from core.utils import async_check_output
+
+
+_DOWNLOAD_TOOLS = {"pnpm"}
+
+
+def _command_tokens(cmd) -> list:
+    if cmd is None:
+        return []
+    if isinstance(cmd, (list, tuple)):
+        return [str(x) for x in cmd]
+    if isinstance(cmd, str):
+        try:
+            return [str(x) for x in shlex.split(cmd)]
+        except Exception:
+            return []
+    return []
+
+
+def _download_tool_for_command(cmd) -> str:
+    tokens = _command_tokens(cmd)
+    if not tokens:
+        return ""
+    prog = os.path.basename(tokens[0])
+    return prog if prog in _DOWNLOAD_TOOLS else ""
+
+
+def _safe_command_for_profile(tool: str, cmd) -> str:
+    if not tool:
+        return ""
+
+    tokens = _command_tokens(cmd)
+    if len(tokens) >= 2 and not str(tokens[1]).startswith("-"):
+        return f"{tool} {tokens[1]}"
+    return tool
 
 
 class ActionDependency(Component):
@@ -41,6 +79,9 @@ class ActionDependency(Component):
         self, root_dir, options, existing_sources=None, existing_targets=None
     ):
         logging.info(f"Run action {self.name}")
+        dep_name = getattr(self, "name", "unknown")
+        span_start_ns = time.perf_counter_ns()
+
         commands = self.commands
         env = getattr(self, "env", {})
         cwd = getattr(self, "cwd", None)
@@ -52,21 +93,43 @@ class ActionDependency(Component):
             self.function()
             os.chdir(saved_dir)
 
+        ctx = observer.dependency_context(
+            getattr(self, "name", "unknown"), getattr(self, "type", "unknown")
+        )
+
+
         try:
             action_outputs = []
 
-            for command in commands:
-                output = await async_check_output(
-                    command,
-                    shell=isinstance(command, str),
-                    stderr=subprocess.STDOUT,
-                    cwd=cwd,
-                    env={**os.environ.copy(), **env},
-                )
-                logging.info(f"Run command {command} in path {cwd}")
-                if self.output:
-                    outputs = output.decode().splitlines()
-                    action_outputs.extend(outputs)
+            with ctx:
+                for command in commands:
+                    tool = _download_tool_for_command(command)
+                    safe_cmd = _safe_command_for_profile(tool, command)
+                    t0_ns = time.perf_counter_ns()
+
+                    output = await async_check_output(
+                        command,
+                        shell=isinstance(command, str),
+                        stderr=subprocess.STDOUT,
+                        cwd=cwd,
+                        env={**os.environ.copy(), **env},
+                    )
+                    if tool:
+                        duration_ms = int((time.perf_counter_ns() - t0_ns) / 1_000_000)
+                        observer.record_download_task(
+                            duration_ms,
+                            {
+                                "durationMs": duration_ms,
+                                "kind": "tool",
+                                "tool": tool,
+                                "command": safe_cmd,
+                                "bytes": 0,
+                            },
+                        )
+
+                    logging.info(f"Run command {command} in path {cwd}")
+                    if self.output:
+                        action_outputs.extend(output.decode().splitlines())
 
             if self.output:
                 logging.info(f"┌──── {self.name}")
@@ -86,6 +149,9 @@ class ActionDependency(Component):
                 f"failed to run action {commands} in {self.target_dir}"
             ) from e
         finally:
+            duration_ms = int((time.perf_counter_ns() - span_start_ns) / 1_000_000)
+            observer.record_dependency_span(duration_ms, dep_name=dep_name)
+
             if hasattr(self, "parent") and self.parent:
                 self.parent.produce_event(self.name)
 
