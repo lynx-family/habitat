@@ -15,7 +15,7 @@ from core.fetchers.fetcher import Fetcher
 from core.settings import DEBUG
 from core.trace import get_global_tracer
 from core.utils import (async_check_output, convert_git_url_to_http, create_temp_dir, get_full_commit_id,
-                        is_bare_git_repo, is_git_repo_valid, is_git_root, is_git_user_set, move, rmtree)
+                        is_bare_git_repo, is_git_repo_valid, is_git_root, is_git_user_set, is_subdir, move, rmtree)
 
 
 async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=False):
@@ -354,8 +354,13 @@ class GitFetcher(Fetcher):
                     f"the target directory for {url} is occupied by another git repository. A clean"
                     " fetch is on the run."
                 )
-                rmtree(source_dir)
-                await self.fetch(root_dir, options, *args, **kwargs)
+                if not is_subdir(root_dir, source_dir):
+                    rmtree(source_dir)
+                    await self.fetch(root_dir, options, *args, **kwargs)
+                else:
+                    raise HabitatException(
+                        f"{root_dir} is a sub directory of {source_dir}. Please check the conflict manually."
+                    )
 
             if getattr(self.component, "enable_lfs", None):
                 try:
