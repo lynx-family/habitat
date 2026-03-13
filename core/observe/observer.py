@@ -1,6 +1,35 @@
 import contextvars
 from contextlib import contextmanager
 from threading import Lock
+from typing import Any, Mapping, TypedDict
+
+class DownloadRange(TypedDict):
+    start: int
+    end: int
+
+class NormalizedDownloadTask(TypedDict):
+    durationMs: int
+    kind: str
+    url: str
+    objectKey: str
+    range: DownloadRange
+    bytes: int
+    tool: str
+    command: str
+    dep_name: str
+from typing import Any, Dict, Mapping, TypedDict
+
+
+class NormalizedDownloadTask(TypedDict):
+    durationMs: int
+    kind: str
+    url: str
+    objectKey: str
+    range: Dict[str, int]
+    bytes: int
+    tool: str
+    command: str
+    dep_name: str
 
 _SEQ_LOCK = Lock()
 _SEQ = 0
@@ -163,9 +192,9 @@ def record_cache_access(kind: str, hit: bool):
             bucket["miss"] += 1
 
 
-def _normalize_download_task(duration_ms: int, task):
+def _normalize_download_task(duration_ms: int, task: Mapping[str, Any]) -> NormalizedDownloadTask:
     # a fixed schema
-    base = {
+    base: NormalizedDownloadTask = {
         "durationMs": int(duration_ms) if duration_ms is not None else 0,
         "kind": "unknown",
         "url": "",
@@ -174,7 +203,7 @@ def _normalize_download_task(duration_ms: int, task):
         "bytes": 0,
         "tool": "",
         "command": "",
-        "dep_name": "unknown"
+        "dep_name": "unknown",
     }
 
     base["dep_name"], _ = get_current_dependency()
