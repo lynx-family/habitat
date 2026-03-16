@@ -3,34 +3,6 @@ from contextlib import contextmanager
 from threading import Lock
 from typing import Any, Mapping, TypedDict
 
-class DownloadRange(TypedDict):
-    start: int
-    end: int
-
-class NormalizedDownloadTask(TypedDict):
-    durationMs: int
-    kind: str
-    url: str
-    objectKey: str
-    range: DownloadRange
-    bytes: int
-    tool: str
-    command: str
-    dep_name: str
-from typing import Any, Dict, Mapping, TypedDict
-
-
-class NormalizedDownloadTask(TypedDict):
-    durationMs: int
-    kind: str
-    url: str
-    objectKey: str
-    range: Dict[str, int]
-    bytes: int
-    tool: str
-    command: str
-    dep_name: str
-
 _SEQ_LOCK = Lock()
 _SEQ = 0
 
@@ -43,6 +15,17 @@ _CURRENT_DEPENDENCY = contextvars.ContextVar(
     "core_observe_current_dependency", default=("unknown", "unknown")
 )
 
+class NormalizedDownloadTask(TypedDict):
+    durationMs: int
+    kind: str
+    url: str
+    objectKey: str
+    range: Dict[str, int]
+    bytes: int
+    tool: str
+    command: str
+    dep_name: str
+    
 
 def get_current_dependency():
     return _CURRENT_DEPENDENCY.get()
