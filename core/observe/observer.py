@@ -1,7 +1,7 @@
 import contextvars
 from contextlib import contextmanager
 from threading import Lock
-from typing import Any, Mapping, TypedDict
+from typing import Any, Mapping, TypedDict, Dict
 
 _SEQ_LOCK = Lock()
 _SEQ = 0
@@ -25,7 +25,7 @@ class NormalizedDownloadTask(TypedDict):
     tool: str
     command: str
     dep_name: str
-    
+
 
 def get_current_dependency():
     return _CURRENT_DEPENDENCY.get()
