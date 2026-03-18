@@ -35,3 +35,9 @@ class HabitatException(Exception):
             e["context"] = self.context
 
         return json.dumps(e, indent=2, ensure_ascii=False)
+
+
+class GitException(HabitatException):
+    """Exception related to git"""
+
+    pass
