@@ -526,7 +526,4 @@ def test_sync_dependency_with_cycled_requirement(tmp_path):
     try:
         run_with_custom_argv(main, ["hab", "sync", "."])
     except HabitatException as e:
-        assert (
-            str(e)
-            == "found a cicular dependency, please check test_b's requirement test_a."
-        )
+        assert e.message == "found a cicular dependency, please check test_b's requirement test_a."
