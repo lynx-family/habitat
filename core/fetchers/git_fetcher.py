@@ -6,13 +6,15 @@ import hashlib
 import logging
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
 from glob import glob
-from typing import NamedTuple, Optional
+from pathlib import Path
+from typing import NamedTuple, Optional, Union
 
-from core.exceptions import HabitatException
+from core.exceptions import GitException, HabitatException
 from core.fetchers.fetcher import Fetcher
 from core.observe import observer
 from core.settings import DEBUG
@@ -82,7 +84,7 @@ async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=Fa
     return GitCacheInfo(used=True, hit=hit, repo_cache_dir=repo_cache_dir)
 
 
-async def run_git_command(cmd: str, *args, **kwargs):
+async def run_git_command(cmd: Union[str, list[str]], *args, **kwargs):
     suppress_error_log = kwargs.get("suppress_error_log", False)
     if suppress_error_log:
         kwargs.pop("suppress_error_log")
@@ -98,6 +100,42 @@ async def run_git_command(cmd: str, *args, **kwargs):
     return output.decode()
 
 
+# Check if the git index is clean for "git am". If not, try to call "git am --abort" to reset.
+async def abort_unfinished_git_am(cwd: str):
+    # Get the rebase-apply path of the current git repository.
+    check_command = "git rev-parse --git-path rebase-apply"
+    try:
+        output = await run_git_command(shlex.split(check_command), cwd=cwd)
+        rebase_apply = output.strip()
+    except subprocess.CalledProcessError as e:
+        raise GitException(
+            "failed to get the path of rebase-apply",
+            cause=e,
+            hint=f"check if path {cwd} is a valid git repository",
+            context={
+                "command": check_command,
+                "working-directory": cwd
+            }
+        )
+
+    # Abort git am to guarantee idempotency.
+    if (Path(cwd) / Path(rebase_apply)).exists():
+        abort_command = "git am --abort"
+        try:
+            await run_git_command(shlex.split(abort_command), cwd=cwd, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            raise GitException(
+                "failed to clean git index by aborting git am",
+                cause=e,
+                hint=f"check if there are other unfinished git operations in {cwd}",
+                context={
+                    "command": abort_command,
+                    "working-directory": cwd,
+                    "stdout": e.output.decode().strip()
+                }
+            )
+
+
 async def apply_patches(patch_path: str, cwd: str):
     expanded_patch_paths = list(glob(patch_path))
     expanded_patch_paths.sort()
@@ -107,6 +145,7 @@ async def apply_patches(patch_path: str, cwd: str):
 
     apply = "apply"
     if await is_git_user_set():
+        await abort_unfinished_git_am(cwd)
         apply = "am"
     try:
         await async_check_output(
