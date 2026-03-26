@@ -1,4 +1,5 @@
 import contextvars
+import time
 from contextlib import contextmanager
 from threading import Lock
 from typing import Any, Dict, Mapping, TypedDict
@@ -44,7 +45,7 @@ def dependency_context(dep_name="unknown", dep_type="unknown"):
     dep_name = _normalize_dep_str(dep_name)
     dep_type = _normalize_dep_str(dep_type)
 
-    ensure_dependency_bucket(dep_name, dep_type=dep_type)
+    ensure_dependency_bucket(dep_name, dep_type)
 
     token = _CURRENT_DEPENDENCY.set((dep_name, dep_type))
     try:
@@ -118,6 +119,7 @@ class _DownloadBucket:
         self.cached = False
         self.bytes_sum = 0
         self.span_duration_ms = 0
+        self.start_ts_ms = int(time.time() * 1000)
 
 
 def _get_download_bucket(dep_name, dep_type=None):
@@ -293,6 +295,7 @@ def get_download_time_by_dependency():
             {
                 "dep_name": bucket.dep_name,
                 "dep_type": bucket.dep_type,
+                "startTS": int(getattr(bucket, "start_ts_ms", 0) or 0),
                 "cached": bucket.cached,
                 "count": int(count),
                 "downloadDurationMs": int(sum_ms),
