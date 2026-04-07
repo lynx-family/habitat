@@ -1,4 +1,6 @@
+import asyncio
 import contextvars
+import time
 from contextlib import contextmanager
 from threading import Lock
 from typing import Any, Dict, Mapping, TypedDict
@@ -10,6 +12,9 @@ _BUCKETS_LOCK = Lock()
 _BUCKETS = {}
 
 _CACHE_LOCK = Lock()
+
+_EXCEPTION_DEPS_LOCK = Lock()
+_EXCEPTION_DEPS = {}
 
 _CURRENT_DEPENDENCY = contextvars.ContextVar(
     "core_observe_current_dependency", default=("unknown", "unknown")
@@ -39,16 +44,35 @@ def _normalize_dep_str(dep_str) -> str:
     return t or "unknown"
 
 
+def record_dependency_exception(exc: BaseException, dep_name, dep_type):
+    bucket = _get_download_bucket(dep_name, dep_type=dep_type)
+
+    with bucket.lock:
+        bucket.failed = True
+
+    exc_name = type(exc).__name__
+    with _EXCEPTION_DEPS_LOCK:
+        previous = _EXCEPTION_DEPS.get(bucket.dep_name, "")
+        # not quite sure if it is possible to have multiple exceptions for a single dependency
+        if previous:
+            _EXCEPTION_DEPS[bucket.dep_name] = f"{previous}; {exc_name}"
+        else:
+            _EXCEPTION_DEPS[bucket.dep_name] = exc_name
+
+
 @contextmanager
 def dependency_context(dep_name="unknown", dep_type="unknown"):
     dep_name = _normalize_dep_str(dep_name)
     dep_type = _normalize_dep_str(dep_type)
 
-    ensure_dependency_bucket(dep_name, dep_type=dep_type)
+    ensure_dependency_bucket(dep_name, dep_type)
 
     token = _CURRENT_DEPENDENCY.set((dep_name, dep_type))
     try:
         yield dep_name
+    except (Exception, asyncio.CancelledError) as exc:
+        record_dependency_exception(exc, dep_name, dep_type=dep_type)
+        raise
     finally:
         _CURRENT_DEPENDENCY.reset(token)
 
@@ -116,8 +140,11 @@ class _DownloadBucket:
         self.tasks = []
         self.stats = _DownloadStats()
         self.cached = False
+        self.cache_recorded = False
         self.bytes_sum = 0
         self.span_duration_ms = 0
+        self.start_ts_ms = int(time.time() * 1000)
+        self.failed = False
 
 
 def _get_download_bucket(dep_name, dep_type=None):
@@ -138,6 +165,7 @@ def reset_download_profiling():
     global _SEQ
     global _BUCKETS
     global _CACHE_ALL, _CACHE_BY_KIND
+    global _EXCEPTION_DEPS
 
     with _BUCKETS_LOCK:
         _BUCKETS = {}
@@ -149,24 +177,30 @@ def reset_download_profiling():
         _CACHE_ALL = {"hit": 0, "miss": 0}
         _CACHE_BY_KIND = {}
 
+    with _EXCEPTION_DEPS_LOCK:
+        _EXCEPTION_DEPS = {}
+
 
 def record_cache_access(kind: str, hit: bool):
     if kind is None:
         kind = "unknown"
     kind = str(kind)
 
-    dep_name, dep_type = get_current_dependency()
+    dep_name, _ = get_current_dependency()
     dep_name = _normalize_dep_str(dep_name)
     dep_bucket = _get_download_bucket(dep_name)
-
     with dep_bucket.lock:
-        dep_bucket.cached = hit
+        if dep_bucket.cache_recorded:
+            return
+        dep_bucket.cache_recorded = True
+        dep_bucket.cached = bool(hit)
 
     with _CACHE_LOCK:
         if hit:
             _CACHE_ALL["hit"] += 1
         else:
             _CACHE_ALL["miss"] += 1
+
         bucket = _CACHE_BY_KIND.get(kind)
         if bucket is None:
             bucket = {"hit": 0, "miss": 0}
@@ -279,6 +313,11 @@ def record_dependency_span(duration_ms: int, dep_name=None):
         bucket.span_duration_ms += duration_ms
 
 
+def get_exception_dependencies() -> dict:
+    with _EXCEPTION_DEPS_LOCK:
+        return dict(_EXCEPTION_DEPS)
+
+
 def get_download_time_by_dependency():
     with _BUCKETS_LOCK:
         buckets = list(_BUCKETS.values())
@@ -293,7 +332,9 @@ def get_download_time_by_dependency():
             {
                 "dep_name": bucket.dep_name,
                 "dep_type": bucket.dep_type,
+                "startTS": getattr(bucket, "start_ts_ms", 0),
                 "cached": bucket.cached,
+                "failed": getattr(bucket, "failed", False),
                 "count": int(count),
                 "downloadDurationMs": int(sum_ms),
                 "bytes": int(bytes_sum),
@@ -339,8 +380,10 @@ __all__ = [
     "reset_download_profiling",
     "record_cache_access",
     "record_download_task",
+    "record_dependency_exception",
     "record_dependency_span",
     "ensure_dependency_bucket",
+    "get_exception_dependencies",
     "get_all_download_tasks_sorted",
     "get_top_slowest_download_tasks",
     "get_download_time_by_dependency",

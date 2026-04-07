@@ -169,13 +169,14 @@ class Component(ABC):
                 args={"component_type": self.type, "source": self.source},
             )
 
-        logging.info(f"Sync dependency {self.name}")
+        logging.info(f"Sync dependency {self.name} to target dir {self.target_dir}")
         dep_name = getattr(self, "name", "unknown")
         dep_type = getattr(self, "type", "unknown")
         span_start_ns = time.perf_counter_ns()
 
         try:
             ctx = observer.dependency_context(dep_name, dep_type)
+            # TODO: up_to_date is deprecated, no cache detection here
             needs_fetch = bool(options.force or not self.up_to_date())
             with ctx:
                 if needs_fetch:
