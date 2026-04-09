@@ -28,6 +28,7 @@ import sys
 import traceback
 from collections import defaultdict
 from pathlib import Path
+from typing import Union
 from zipfile import ZipFile
 
 from core.exceptions import HabitatException
@@ -688,3 +689,19 @@ def cycle_detection(deps: dict):
     for node in graph.node_requirements:
         if (node not in grey_nodes) and (node not in black_nodes):
             grey_nodes, black_nodes = visit(graph, node, grey_nodes, black_nodes)
+
+
+async def run_git_command(cmd: Union[str, list[str]], *args, **kwargs):
+    suppress_error_log = kwargs.get("suppress_error_log", False)
+    if suppress_error_log:
+        kwargs.pop("suppress_error_log")
+    try:
+        output = await async_check_output(cmd, *args, **kwargs)
+    except subprocess.CalledProcessError as e:
+        if not suppress_error_log:
+            logging.error(
+                f"running command {cmd} in {kwargs.get('cwd') if kwargs.get('cwd') else os.getcwd()}, "
+                f"original output:{os.linesep}{e.output.decode()}"
+            )
+        raise e
+    return output.decode()
