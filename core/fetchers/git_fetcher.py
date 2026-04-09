@@ -12,93 +12,21 @@ import sys
 import time
 from glob import glob
 from pathlib import Path
-from typing import NamedTuple, Optional, Union
 
+from core.cache.config import CacheConfig
+from core.cache.git_cache import GitCache, GitCacheInfo, GitCacheTarget
 from core.exceptions import GitException, HabitatException
 from core.fetchers.fetcher import Fetcher
 from core.observe import observer
 from core.settings import DEBUG
 from core.trace import get_global_tracer
 from core.utils import (async_check_output, convert_git_url_to_http, create_temp_dir, get_full_commit_id,
-                        is_bare_git_repo, is_git_repo_valid, is_git_root, is_git_user_set, is_subdir, move, rmtree)
+                        is_git_repo_valid, is_git_root, is_git_user_set, is_subdir, move, rmtree, run_git_command)
 
 
-class GitCacheInfo(NamedTuple):
-    used: bool
-    hit: Optional[bool]
-    repo_cache_dir: Optional[str]
-
-
-async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=False):
+def cache_path(url: str) -> Path:
     repo_name = re.split(r"/|:", url)[-1]
-    repo_cache_dir = os.path.join(
-        global_cache_dir, repo_name, hashlib.md5(url.encode()).hexdigest()
-    )
-    if not os.path.exists(repo_cache_dir):
-        os.makedirs(repo_cache_dir)
-
-    had_cache_repo = is_bare_git_repo(repo_cache_dir)
-
-    need_fetch = False
-    if not had_cache_repo:
-        cmd = f"git init --bare {repo_cache_dir}"
-        await run_git_command(
-            cmd, shell=True, cwd=global_cache_dir, stderr=subprocess.STDOUT
-        )
-        cmd = "git config remote.origin.url " + url
-        await run_git_command(
-            cmd, shell=True, cwd=repo_cache_dir, stderr=subprocess.STDOUT
-        )
-        need_fetch = True
-    elif fetch_all:
-        need_fetch = True
-    else:
-        cmd = f"git cat-file -t {ref_spec.rsplit()[-1]}"
-        try:
-            await run_git_command(
-                cmd,
-                shell=True,
-                cwd=repo_cache_dir,
-                stderr=subprocess.STDOUT,
-                suppress_error_log=True,
-            )
-        except subprocess.CalledProcessError:
-            need_fetch = True
-
-    hit = bool(had_cache_repo and (not need_fetch))
-
-    if need_fetch:
-        logging.debug(f"update git cache in {repo_cache_dir}")
-        fetch_args = ["--force", "--progress", "--update-head-ok", "--no-recurse-submodules"]
-        cmd = f"git fetch {' '.join(fetch_args)} -- {url} {ref_spec}"
-        try:
-            await run_git_command(
-                cmd, shell=True, cwd=repo_cache_dir, stderr=subprocess.STDOUT
-            )
-        except subprocess.CalledProcessError:
-            logging.warning(f"not a valid cache, removing {repo_cache_dir}")
-            # TODO: windows permission
-            rmtree(repo_cache_dir, ignore_errors=True)
-            await run_git_command(
-                cmd, shell=True, cwd=repo_cache_dir, stderr=subprocess.STDOUT
-            )
-    return GitCacheInfo(used=True, hit=hit, repo_cache_dir=repo_cache_dir)
-
-
-async def run_git_command(cmd: Union[str, list[str]], *args, **kwargs):
-    suppress_error_log = kwargs.get("suppress_error_log", False)
-    if suppress_error_log:
-        kwargs.pop("suppress_error_log")
-    try:
-        output = await async_check_output(cmd, *args, **kwargs)
-    except subprocess.CalledProcessError as e:
-        if not suppress_error_log:
-            logging.error(
-                f"running command {cmd} in {kwargs.get('cwd') if kwargs.get('cwd') else os.getcwd()}, "
-                f"original output:{os.linesep}{e.output.decode()}"
-            )
-        raise e
-    return output.decode()
+    return Path(repo_name) / hashlib.md5(url.encode()).hexdigest()
 
 
 # Check if the git index is clean for "git am". If not, try to call "git am --abort" to reset.
@@ -159,6 +87,16 @@ async def apply_patches(patch_path: str, cwd: str):
 
 
 class GitFetcher(Fetcher):
+    # TODO: find a better name
+    async def try_fetch_in_cache(self, url: str, refspec: str) -> GitCacheInfo:
+        default_target = GitCacheTarget(url, refspec)
+
+        info = await self.cache.read(default_target)
+        if info.hit:
+            return info
+
+        target = await self.cache.write(url, refspec)
+        return GitCacheInfo(hit=info.hit, target=target)
 
     async def fetch(self, root_dir, options, *args, **kwargs):
         tracer = get_global_tracer()
@@ -184,6 +122,16 @@ class GitFetcher(Fetcher):
 
         url = self.component.url
         target_dir = self.component.target_dir
+
+        self.cache = GitCache(
+            CacheConfig(
+                base=Path(options.cache_dir) / "git",
+                on=not options.disable_cache,
+                read_only=options.read_only_cache
+            ),
+            cache_path_handler=cache_path
+        )
+
         if options.git_auth:
             url = convert_git_url_to_http(url, options.git_auth)
 
@@ -352,34 +300,16 @@ class GitFetcher(Fetcher):
             else:
                 depth_arg = "--depth=1 --no-tags" if options.no_history else ""
 
-            # keep the original refspec if --disable-cache was set
             checkout_ref_spec = ref_spec
-            cache_info = GitCacheInfo(used=False, hit=None, repo_cache_dir=None)
+            cache_info = GitCacheInfo(hit=None, target=GitCacheTarget(url, checkout_ref_spec))
 
             t0_ns = time.perf_counter_ns()
-            if not options.disable_cache:
-                global_cache_dir = os.path.expanduser(
-                    os.path.join(options.cache_dir, "git")
-                )
-                global_cache_dir = os.path.realpath(
-                    os.path.expandvars(global_cache_dir)
-                )
-                # the local repo for cache keeps refs like "refs/remotes/origin/main" instead of "refs/heads/main"
-                cache_info = await fetch_in_cache_if_needed(
-                    url, ref_spec, global_cache_dir, fetch_all=fetch_all
-                )
+            cache_info = await self.try_fetch_in_cache(url, checkout_ref_spec)
+            url = cache_info.target.url
+            checkout_ref_spec = cache_info.target.refspec
+
+            if self.cache.config.on:
                 observer.record_cache_access("git", hit=bool(cache_info.hit))
-                url = cache_info.repo_cache_dir
-                # if a git dependency is fetched by branch or tag
-                if ":" in ref_spec:
-                    # in this case, the local cache repo was used as a remote.
-                    # the (<remote ref>:<local repo ref>) refspec format should be adapted with the cache process.
-                    # 1. the "<remote ref>" should be like "refs/remotes/origin/main" since the local cache repo will
-                    #  be used as "remote",
-                    # 2. the "<local repo ref>" should be like "refs/remotes/origin/main" as well. because the checkout
-                    #  args for branch is set to "-B <branch> refs/remotes/origin/main".
-                    _, cached_ref = ref_spec.split(":", 1)
-                    checkout_ref_spec = f"{cached_ref}:{cached_ref.lstrip('+')}"
 
             fetch_args = ["--force", "--progress", "--update-head-ok", "--no-recurse-submodules"]
             cmd = f"git fetch {depth_arg} {' '.join(fetch_args)} -- {url} {checkout_ref_spec}"

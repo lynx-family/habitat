@@ -13,9 +13,11 @@ import stat
 import sys
 import time
 from pathlib import Path
+from typing import Union
 from urllib.parse import parse_qs, urlsplit
 
-from core.common.cache_mixin import CacheMixin
+from core.cache.config import CacheConfig
+from core.cache.file_cache import FileCache
 from core.common.http_status import client_error, server_error, success
 from core.common.httpx_client import HttpxClient
 from core.exceptions import HabitatException
@@ -27,12 +29,17 @@ from core.utils import ProgressBar, async_check_output, create_temp_dir, extract
 FILE_PART_SIZE = 20 * 1024 * 1024
 
 
-def check_sha256(path: str, sha256: str):
+def get_digest(path: Union[str, Path]):
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for block in iter(lambda: f.read(FILE_PART_SIZE), b""):
             h.update(block)
-    return h.hexdigest() == sha256
+
+    return h.hexdigest()
+
+
+def check_sha256(path: str, sha256: str):
+    return get_digest(path) == sha256
 
 
 def _get_content_length(header):
@@ -117,7 +124,7 @@ def check_target_dir_existence(target_dir: str, override_exist: bool):
         os.remove(target_dir)
 
 
-class HttpFetcher(Fetcher, CacheMixin):
+class HttpFetcher(Fetcher):
     def __init__(self, component):
         super(HttpFetcher, self).__init__(component)
         self.url = self.component.url
@@ -154,8 +161,9 @@ class HttpFetcher(Fetcher, CacheMixin):
         # retrieve file from cache, the key is the url of the dependency.
         skip_download = False
         url_cache_key = getattr(component, "original_url", self.url)
-        cache = self.get_from_cache(convert_url_to_cache_path(url_cache_key))
-        if self.cache_dir is not None:
+
+        cache = self.cache.lookup(url_cache_key)
+        if self.cache.config.on:
             observer.record_cache_access("http", bool(cache))
         if cache:
             shutil.copy2(cache, file_path)
@@ -210,7 +218,7 @@ class HttpFetcher(Fetcher, CacheMixin):
             )
 
         # store file to cache, the key is the url of the dependency.
-        self.put_to_cache(convert_url_to_cache_path(url_cache_key), path=file_path)
+        self.cache.write(url_cache_key, Path(file_path))
 
         paths = getattr(component, "paths", [])
         if getattr(component, "decompress", True):
@@ -322,10 +330,15 @@ class HttpFetcher(Fetcher, CacheMixin):
         component = self.component
         target_dir = component.target_dir
 
-        if options.disable_cache:
-            CacheMixin.cache_dir = None
-        elif options.cache_dir:
-            CacheMixin.cache_dir = os.path.join(options.cache_dir, "objects")
+        cache_config = CacheConfig(
+            base=Path(options.cache_dir) / "objects",
+            on=not options.disable_cache,
+            read_only=options.read_only_cache
+        )
+        self.cache = FileCache(
+            config=cache_config,
+            cache_path_handler=convert_url_to_cache_path
+        )
 
         await self.download(component.name, root_dir, options.force)
         return [target_dir]

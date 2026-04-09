@@ -77,6 +77,12 @@ class Sync(Command):
             "default": False,
         },
         {
+            "flags": ["--read-only-cache"],
+            "help": "Do not write to cache, default False",
+            "action": "store_true",
+            "default": False,
+        },
+        {
             "flags": ["--cache-dir"],
             "help": "Global cache directory, default is $HOME/.habitat_cache",
             "default": GLOBAL_CACHE_DIR,
