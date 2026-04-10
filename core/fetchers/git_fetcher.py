@@ -69,7 +69,8 @@ async def fetch_in_cache_if_needed(url, ref_spec, global_cache_dir, fetch_all=Fa
 
     if need_fetch:
         logging.debug(f"update git cache in {repo_cache_dir}")
-        cmd = f"git fetch --force --progress --update-head-ok -- {url} {ref_spec}"
+        fetch_args = ["--force", "--progress", "--update-head-ok", "--no-recurse-submodules"]
+        cmd = f"git fetch {' '.join(fetch_args)} -- {url} {ref_spec}"
         try:
             await run_git_command(
                 cmd, shell=True, cwd=repo_cache_dir, stderr=subprocess.STDOUT
@@ -380,13 +381,14 @@ class GitFetcher(Fetcher):
                     _, cached_ref = ref_spec.split(":", 1)
                     checkout_ref_spec = f"{cached_ref}:{cached_ref.lstrip('+')}"
 
-            cmd = f"git fetch {depth_arg} --force --progress --update-head-ok -- {url} {checkout_ref_spec}"
+            fetch_args = ["--force", "--progress", "--update-head-ok", "--no-recurse-submodules"]
+            cmd = f"git fetch {depth_arg} {' '.join(fetch_args)} -- {url} {checkout_ref_spec}"
             await run_git_command(
                 cmd, shell=True, cwd=source_dir, retry=1, stderr=subprocess.STDOUT
             )
             duration_ms = int((time.perf_counter_ns() - t0_ns) / 1_000_000)
             no_url_cmd = (
-                f"git fetch {depth_arg} --force --progress --update-head-ok -- <url> {checkout_ref_spec}"
+                f"git fetch {depth_arg} {' '.join(fetch_args)} -- <url> {checkout_ref_spec}"
             )
             observer.record_download_task(
                 duration_ms,
