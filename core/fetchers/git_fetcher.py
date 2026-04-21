@@ -317,18 +317,16 @@ class GitFetcher(Fetcher):
                 cmd, shell=True, cwd=source_dir, retry=1, stderr=subprocess.STDOUT
             )
             duration_ms = int((time.perf_counter_ns() - t0_ns) / 1_000_000)
-            no_url_cmd = (
-                f"git fetch {depth_arg} {' '.join(fetch_args)} -- <url> {checkout_ref_spec}"
-            )
-            observer.record_download_task(
-                duration_ms,
-                {
-                    "durationMs": duration_ms,
-                    "kind": "git",
-                    "url": self.component.url,
-                    "command": no_url_cmd
-                }
-            )
+            if not bool(cache_info.hit):
+                observer.record_download_task(
+                    duration_ms,
+                    {
+                        "durationMs": duration_ms,
+                        "kind": "git",
+                        "url": self.component.url,
+                        "objectKey": checkout_ref_spec
+                    }
+                )
 
             if options.raw and not os.path.exists(target_dir):
                 os.mkdir(target_dir)
