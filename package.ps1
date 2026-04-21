@@ -4,6 +4,7 @@ $commands = Join-Path -Path $root -ChildPath "commands\*.py"
 $common = Join-Path -Path $root -ChildPath "common\*.py"
 $components = Join-Path -Path $root -ChildPath "components\*.py"
 $fetchers = Join-Path -Path $root -ChildPath "fetchers\*.py"
+$observe = Join-Path -Path $root -ChildPath "observe\*.py"
 pyinstaller -y -F -p . -n hab .\core\main.py `
     --hidden-import=coloredlogs `
     --hidden-import=asyncio_atexit `
@@ -12,4 +13,5 @@ pyinstaller -y -F -p . -n hab .\core\main.py `
     --add-data=${commands}:"core\commands" `
     --add-data=${common}:"core\common" `
     --add-data=${components}:"core\components" `
-    --add-data=${fetchers}:"core\fetchers"
+    --add-data=${fetchers}:"core\fetchers" `
+    --add-data=${observe}:"core\observe"
