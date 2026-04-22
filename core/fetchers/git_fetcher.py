@@ -86,7 +86,7 @@ async def apply_patches(patch_path: str, cwd: str):
             cause=e,
             hint=f"Check if patches have conflict with code. Or remove {cwd} then retry.",
             context={
-                "command": command,
+                "command": shlex.join(command),
                 "working-directory": cwd,
                 "stderr": e.stderr.decode()
             }
