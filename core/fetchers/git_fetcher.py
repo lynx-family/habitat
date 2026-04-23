@@ -18,10 +18,10 @@ from core.cache.git_cache import GitCache, GitCacheInfo, GitCacheTarget
 from core.exceptions import GitException, HabitatException
 from core.fetchers.fetcher import Fetcher
 from core.observe import observer
-from core.settings import DEBUG
+from core.settings import DEBUG, DEFAULT_GIT_EMAIL, DEFAULT_GIT_USER
 from core.trace import get_global_tracer
-from core.utils import (async_check_output, convert_git_url_to_http, create_temp_dir, get_full_commit_id,
-                        is_git_repo_valid, is_git_root, is_git_user_set, is_subdir, move, rmtree, run_git_command)
+from core.utils import (convert_git_url_to_http, create_temp_dir, get_full_commit_id, is_git_repo_valid, is_git_root,
+                        is_subdir, move, rmtree, run_git_command)
 
 
 def cache_path(url: str) -> Path:
@@ -70,19 +70,26 @@ async def apply_patches(patch_path: str, cwd: str):
     expanded_patch_paths.sort()
 
     if not expanded_patch_paths:
-        raise HabitatException("failed to match valid patch paths.")
-
-    apply = "apply"
-    if await is_git_user_set():
-        await abort_unfinished_git_am(cwd)
-        apply = "am"
-    try:
-        await async_check_output(
-            ["git", apply] + expanded_patch_paths, cwd=cwd, stderr=subprocess.STDOUT
-        )
-    except subprocess.CalledProcessError as e:
         raise HabitatException(
-            f"{e.output.decode()}. This might caused by conflicts between patches and code."
+            "failed to match valid patch paths.",
+            hint=f"check if patches {patch_path} exist"
+        )
+
+    user_args = ["-c", f"user.name={DEFAULT_GIT_USER}", "-c", f"user.email={DEFAULT_GIT_EMAIL}"]
+    command = ["git", *user_args, "am", *expanded_patch_paths]
+    await abort_unfinished_git_am(cwd)
+    try:
+        await run_git_command(command, cwd=cwd, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        raise GitException(
+            "Failed to apply patches.",
+            cause=e,
+            hint=f"Check if patches have conflict with code. Or remove {cwd} then retry.",
+            context={
+                "command": command,
+                "working-directory": cwd,
+                "stderr": e.stderr.decode()
+            }
         )
 
 

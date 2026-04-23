@@ -28,3 +28,6 @@ MAX_DEPENDENCY_WAIT_TIME = int(os.environ.get('HABITAT_MAX_DEPENDENCY_WAIT_TIME'
 
 # whether to enable ssl/tls verify for http client.
 SSL_VERIFY = os.environ.get("HABITAT_SSL_VERIFY", "1") == "1"
+
+DEFAULT_GIT_USER = "habitat"
+DEFAULT_GIT_EMAIL = "habitat@default.com"
