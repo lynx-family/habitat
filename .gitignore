@@ -16,4 +16,4 @@ __pycache__/
 /build
 /dist
 span.log
-
+.vscode
