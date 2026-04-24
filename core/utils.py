@@ -19,6 +19,7 @@ import platform
 import posixpath
 import random
 import re
+import shlex
 import shutil
 import stat
 import string
@@ -26,11 +27,12 @@ import subprocess
 import sys
 import traceback
 from collections import defaultdict
+from glob import glob
 from pathlib import Path
 from typing import Union
 from zipfile import ZipFile
 
-from core.exceptions import HabitatException
+from core.exceptions import GitException, HabitatException
 from core.settings import CACHE_DIR_PREFIX
 
 
@@ -239,19 +241,35 @@ def convert_to_posix_path(path):
     return path.replace(os.sep, posixpath.sep) if os.sep != posixpath.sep else path
 
 
-def get_head_commit_id(**kwargs):
+def get_head_commit_id(relative=0, **kwargs):
     return (
-        subprocess.check_output(["git", "rev-parse", "HEAD"], **kwargs).decode().strip()
+        subprocess.check_output(["git", "rev-parse", f"HEAD~{relative}"], **kwargs).decode().strip()
     )
 
 
-def get_full_commit_id(short_id, url):
-    cmd = ["git", "ls-remote", url]
-    output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-    for line in output.decode().splitlines():
-        if line.startswith(short_id):
-            return line.split()[0].strip()
-    raise Exception(f"commit id {short_id} not found on remote")
+def get_full_commit_id(short_id, url, *, from_local: bool = False):
+    if not from_local:
+        cmd = ["git", "ls-remote", url]
+        output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        for line in output.decode().splitlines():
+            if line.startswith(short_id):
+                return line.split()[0].strip()
+        raise Exception(f"commit id {short_id} not found on remote")
+    else:
+        command = ["git", "rev-parse", "--verify", short_id]
+        try:
+            output = subprocess.check_output(command, stderr=subprocess.PIPE, cwd=url)
+        except subprocess.CalledProcessError as e:
+            raise GitException(
+                f"Failed to get full commit hash in {url}",
+                cause=e,
+                context={
+                    "command": f"git rev-parse --verify {short_id}",
+                    "working-directory": url,
+                    "stderr": e.stderr.decode()
+                }
+            )
+        return output.decode().strip()
 
 
 def ignore_paths_in_git(root_dir: str, paths: list, ignore_errors=False):
@@ -690,3 +708,129 @@ async def run_git_command(cmd: Union[str, list[str]], *args, **kwargs):
             )
         raise e
     return output.decode()
+
+
+def get_patch_series(patches: str) -> list[str]:
+    expanded_patch_paths = list(glob(patches))
+    expanded_patch_paths.sort()
+    return expanded_patch_paths
+
+
+def get_patch_id(_input, repo_dir: Path) -> list[str]:
+    _stdin = _input
+    if isinstance(_input, list):
+        _stdin = subprocess.PIPE
+
+    patch_id_command = ["git", "patch-id", "--stable"]
+    p = subprocess.Popen(
+        patch_id_command,
+        stdin=_stdin,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=repo_dir,
+    )
+
+    if isinstance(_input, list):
+        for patch in _input:
+            with open(patch, "rb") as f:
+                p.stdin.write(f.read())
+        p.stdin.close()
+        p.stdin = None
+
+    stdout, stderr = p.communicate()
+    if p.returncode != 0:
+        raise GitException(
+            "Failed to get patch id",
+            context={
+                "command": shlex.join(patch_id_command),
+                "working-directory": repo_dir,
+                "stderr": stderr.decode(),
+            },
+        )
+
+    patch_ids = []
+    for line in stdout.splitlines():
+        if not line.strip():
+            continue
+        patch_ids.append(line.split(maxsplit=1)[0].decode())
+    return patch_ids
+
+
+def is_repo_unchanged(target_commit: str, repo_dir: Path) -> bool:
+    diff_command = ["git", "diff", "--exit-code", target_commit, "--", "."]
+    try:
+        subprocess.run(
+            diff_command,
+            check=True,
+            cwd=repo_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError:
+        return False
+
+    return True
+
+
+def is_repo_patched(base_commit: str, patch_series: list[str], repo_dir: Path) -> bool:
+    if not patch_series:
+        return False
+
+    # the check order should be reversed to the patch order
+    patch_series.reverse()
+    patch_count = len(patch_series)
+    log_command = ["git", "log", "-n", str(patch_count), "-p", "--pretty=format:"]
+
+    log_popen = subprocess.Popen(
+        log_command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=repo_dir
+    )
+
+    # batch get patch id of commits
+    commit_patch_ids = get_patch_id(log_popen.stdout, repo_dir)
+    log_popen.stdout.close()
+
+    log_stderr = b""
+    if log_popen.stderr is not None:
+        log_stderr = log_popen.stderr.read()
+        log_popen.stderr.close()
+
+    log_popen.wait()
+    if log_popen.returncode != 0:
+        raise GitException(
+            f"Failed to get git log in {repo_dir}",
+            context={
+                "command": shlex.join(log_command),
+                "working-directory": repo_dir,
+                "stderr": log_stderr.decode(),
+            },
+        )
+
+    # batch get patch id of patches
+    patch_ids = get_patch_id(patch_series, repo_dir)
+    if patch_ids != commit_patch_ids:
+        return False
+
+    # all the patches were applied in order. check whether the base commit of the patch series
+    # is the same as the given commit.
+    try:
+        commit = get_head_commit_id(relative=patch_count, cwd=repo_dir, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        raise GitException(
+            f"Failed to get commit hash in {repo_dir}",
+            cause=e,
+            context={
+                "command": f"git rev-parse HEAD~{patch_count}",
+                "working-directory": repo_dir,
+                "stderr": e.stderr.decode()
+            }
+        )
+
+    if len(base_commit) != 40:
+        base_commit = get_full_commit_id(base_commit, repo_dir, from_local=True)
+
+    if commit != base_commit:
+        return False
+    return True
