@@ -39,6 +39,8 @@ def get_digest(path: Union[str, Path]):
 
 
 def check_sha256(path: str, sha256: str):
+    if not sha256:
+        return False
     return get_digest(path) == sha256
 
 
@@ -108,14 +110,11 @@ def move_to_target_dir(temp_dir, target_dir, is_single_file):
     shutil.move(path, target_dir)
 
 
-def check_target_dir_existence(target_dir: str, override_exist: bool):
+def prepare_target_dir(target_dir: str):
     # target_dir's parent directory should be existed.
     os.makedirs(os.path.dirname(target_dir), exist_ok=True)
     if not os.path.exists(target_dir):
         pass
-    elif not override_exist:
-        logging.info(f"{target_dir} existed, skip fetching.")
-        return
     elif os.path.isdir(target_dir):
         logging.debug(f"directory {target_dir} is going to be overridden")
         _rmtree(target_dir)
@@ -140,17 +139,12 @@ class HttpFetcher(Fetcher):
             self._download_client = HttpxClient(self.base_url, getattr(self.component, "http_headers", {}))
         return self._download_client
 
-    async def download(self, item: str, root_dir: str, override_exist: bool):
-        logging.info(
-            f"{item} will be downloaded to path: {root_dir}, "
-            f'the operation will {"not " if not override_exist else ""}override existing file.'
-        )
-
+    async def download(self, item: str, root_dir: str):
         target_dir = os.path.join(root_dir, item)
         target_dir = str(Path(target_dir))
         component = self.component
         is_single_file = not getattr(component, "decompress", True)
-        check_target_dir_existence(target_dir, override_exist)
+        prepare_target_dir(target_dir)
 
         # update download url to get file name
         self._update_download_url(self.component.url)
@@ -340,5 +334,5 @@ class HttpFetcher(Fetcher):
             cache_path_handler=convert_url_to_cache_path
         )
 
-        await self.download(component.name, root_dir, options.force)
+        await self.download(component.name, root_dir)
         return [target_dir]
