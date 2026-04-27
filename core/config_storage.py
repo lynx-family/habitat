@@ -11,17 +11,21 @@ from core.exceptions import HabitatException
 class ConfigStorage(KeyValueStorage):
 
     def get(self, key, default=None):
-        value = (
-            os.environ.get("HABITAT_" + key.upper().replace(".", "_"))
-            or default
-            or super(ConfigStorage, self).get(key)
-            or NotSet
+        env_key = "HABITAT_" + key.upper().replace(".", "_")
+        env_value = os.environ.get(env_key)
+        if env_value is not None:
+            return env_value
+
+        value = super(ConfigStorage, self).get(key)
+        if value is not NotSet:
+            return value
+
+        if default is not None:
+            return default
+
+        raise HabitatException(
+            f'Configuration {key} not found, please run "hab setup {key}" to setup a correct value'
         )
-        if value is NotSet:
-            raise HabitatException(
-                f'Configuration {key} not found, please run "hab setup {key}" to setup a correct value'
-            )
-        return value
 
     def __iter__(self):
         config = self.data

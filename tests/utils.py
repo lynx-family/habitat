@@ -1,6 +1,8 @@
 import asyncio
 import hashlib
 import os
+import random
+import string
 import subprocess
 import sys
 from io import BytesIO
@@ -53,3 +55,9 @@ def make_change_in_repo(
 
 def generate_habitat_config_file(config_name: str, config):
     return f"{config_name}={str(config)}"
+
+
+def generate_random_string(max_length: int = 64) -> str:
+    length = random.randint(1, max_length)
+    s = "".join(random.choices(string.ascii_letters + string.digits, k=length))
+    return s
