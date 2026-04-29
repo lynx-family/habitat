@@ -103,7 +103,7 @@ if [ "$cygwin" = "false" -a "$nonstop" = "false" ] ; then
     fi
 fi
 
-HABITAT_CACHE_DIR=$HOME/.habitat/bin
+HABITAT_CACHE_DIR=$HOME/.habitat_cache/hab
 HABITAT_BIN=$HABITAT_CACHE_DIR/hab-$HABITAT_VERSION
 
 install() {
