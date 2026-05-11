@@ -1,6 +1,6 @@
 import shutil
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 from core.cache.config import CacheConfig
 
@@ -31,6 +31,20 @@ class FileCache:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
 
         shutil.copy2(value, cache_path)
+
+    def write_content(self, key: str, value: Union[bytes, str]) -> None:
+        if not self.config.on or self.config.read_only:
+            return
+
+        cache_path = self.path(key)
+        if not cache_path.exists():
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+        mode = "w"
+        if isinstance(value, bytes):
+            mode = "wb"
+        with open(cache_path, mode) as f:
+            f.write(value)
 
     def lookup(self, key: str) -> Optional[Path]:
         if not self.config.on:
