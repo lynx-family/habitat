@@ -2,6 +2,6 @@
 # Licensed under the Apache License Version 2.0 that can be found in the
 # LICENSE file in the root directory of this source tree.
 
-VERSION = (0, 3, 148)
+VERSION = "0.3.149"
 
-__version__ = ".".join(map(str, VERSION))
+__version__ = "0.3.149"
