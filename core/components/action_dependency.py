@@ -2,6 +2,7 @@
 # Licensed under the Apache License Version 2.0 that can be found in the
 # LICENSE file in the root directory of this source tree.
 
+import asyncio
 import logging
 import os
 import shlex
@@ -66,6 +67,11 @@ class ActionDependency(Component):
             "default": False,
         },
         "cwd": {"optional": True},
+        "retry": {
+            "type": int,
+            "validator": lambda val, config: isinstance(val, int) and val >= 0,
+            "default": 0,
+        },
     }
     source_attributes = []
     source_stamp_attributes = []
@@ -117,13 +123,25 @@ class ActionDependency(Component):
                     safe_cmd = _safe_command_for_profile(tool, command)
                     t0_ns = time.perf_counter_ns()
 
-                    output = await async_check_output(
-                        command,
-                        shell=isinstance(command, str),
-                        stderr=subprocess.STDOUT,
-                        cwd=cwd,
-                        env={**os.environ.copy(), **env},
-                    )
+                    for attempt in range(self.retry + 1):
+                        try:
+                            output = await async_check_output(
+                                command,
+                                shell=isinstance(command, str),
+                                stderr=subprocess.STDOUT,
+                                cwd=cwd,
+                                env={**os.environ.copy(), **env},
+                            )
+                            break
+                        except subprocess.CalledProcessError:
+                            if attempt >= self.retry:
+                                raise
+                            delay = 2 ** (attempt + 1)
+                            logging.warning(
+                                f"Command {command} failed for action {self.name}; "
+                                f"retrying in {delay}s ({attempt + 1}/{self.retry})"
+                            )
+                            await asyncio.sleep(delay)
                     if tool:
                         duration_ms = int((time.perf_counter_ns() - t0_ns) / 1_000_000)
                         observer.record_download_task(
