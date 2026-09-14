@@ -2,9 +2,7 @@ name: release
 
 on:
   workflow_dispatch:
-  pull_request:
-    types:
-      - closed
+  push:
     branches:
       - main
 
@@ -13,7 +11,7 @@ permissions:
 
 jobs:
   check-version:
-    if: ${{ github.event.pull_request.merged || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.merged }}
     runs-on: ubuntu-latest
     outputs:
       upgrade: ${{ steps.check.outputs.UPGRADE }}
