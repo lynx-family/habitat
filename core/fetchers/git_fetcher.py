@@ -102,7 +102,11 @@ class GitFetcher(Fetcher):
         if info.hit:
             return info
 
-        target = await self.cache.write(url, refspec)
+        try:
+            target = await self.cache.write(url, refspec)
+        except (OSError, subprocess.CalledProcessError):
+            logging.warning("failed to update git cache, falling back to the source repository.")
+            target = default_target
         return GitCacheInfo(hit=info.hit, target=target)
 
     async def fetch(self, root_dir, options, *args, **kwargs):

@@ -4,9 +4,7 @@ from pathlib import Path
 from typing import Callable, NamedTuple, Optional
 
 from core.cache.config import CacheConfig
-from core.utils import is_bare_git_repo, rmtree, run_git_command
-
-CACHE_RETRY_TIMES = 2
+from core.utils import is_bare_git_repo, run_git_command
 
 
 class GitCacheTarget(NamedTuple):
@@ -70,23 +68,9 @@ class GitCache:
         logging.debug(f"update repo {url} and its refspec {refspec} cache in {repo_cache_dir}")
         fetch_args = ["--force", "--progress", "--update-head-ok", "--no-recurse-submodules"]
         cmd = f"git fetch {' '.join(fetch_args)} -- {url} {refspec}"
-
-        remained_chances = CACHE_RETRY_TIMES
-        while True:
-            remained_chances -= 1
-            try:
-                await run_git_command(
-                    cmd, shell=True, cwd=repo_cache_dir, stderr=subprocess.STDOUT
-                )
-            except subprocess.CalledProcessError:
-                if remained_chances > 0:
-                    logging.warning(f"not a valid cache, removing {repo_cache_dir}")
-                    # TODO: windows permission
-                    rmtree(repo_cache_dir, ignore_errors=True)
-                else:
-                    raise
-            else:
-                break
+        await run_git_command(
+            cmd, shell=True, cwd=repo_cache_dir, stderr=subprocess.STDOUT
+        )
 
         return GitCacheTarget(repo_cache_dir, self.cached_refspec(refspec))
 
